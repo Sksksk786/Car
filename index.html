@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Ride Cash</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
+#mapPicker{height:280px;border-radius:12px;margin-bottom:10px;display:none}
+#mapPicker.show{display:block}
+.maphint{font-size:12px;color:#666;margin:-4px 0 8px}
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#f5f5f5;color:#111}
 .app{max-width:520px;margin:auto;padding-bottom:30px}
@@ -104,6 +108,9 @@ Destination
 🗺️ Select on Map
 </button>
 </div>
+
+<div id="mapPicker"></div>
+<div id="mapHint" class="maphint hidden">📍 Map par tap/click karke destination pin lagao</div>
 
 <div id="destinationResult" class="locationbox hidden"></div>
 
@@ -351,6 +358,7 @@ Complete Ride
 
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 
 let selectedRide='Auto';
@@ -719,21 +727,123 @@ trip.toFixed(1)+' km'
 
 }
 
-function openDestinationMap(){
+let leafletMap=null;
+let destMarker=null;
 
-const q=
-$('drop').value.trim()||
-'India';
+async function openDestinationMap(){
 
-window.open(
-'https://www.openstreetmap.org/search?query='+
-encodeURIComponent(q),
-'_blank'
+const el=$('mapPicker');
+
+const wasOpen=el.classList.contains('show');
+
+if(wasOpen){
+
+el.classList.remove('show');
+
+$('mapHint').classList.add('hidden');
+
+return;
+
+}
+
+el.classList.add('show');
+
+$('mapHint').classList.remove('hidden');
+
+// centre map: pickup location > existing dropCoords > India default
+const centre=
+pickupCoords||
+dropCoords||
+{lat:22.9734,lon:78.6569};
+
+const zoom=
+(pickupCoords||dropCoords)?13:5;
+
+if(!leafletMap){
+
+leafletMap=L.map('mapPicker').setView(
+[centre.lat,centre.lon],
+zoom
 );
 
-alert(
-'Map mein destination dekho, naam/area copy karke Destination box mein daalo, phir Search dabao.'
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+maxZoom:19,
+attribution:'© OpenStreetMap contributors'
+}
+).addTo(leafletMap);
+
+leafletMap.on('click',async e=>{
+
+await placeDestPin(
+e.latlng.lat,
+e.latlng.lng
 );
+
+});
+
+// fix rendering glitch when a hidden map becomes visible
+setTimeout(()=>leafletMap.invalidateSize(),150);
+
+}else{
+
+leafletMap.setView([centre.lat,centre.lon],zoom);
+
+setTimeout(()=>leafletMap.invalidateSize(),150);
+
+}
+
+if(dropCoords&&!destMarker){
+
+await placeDestPin(dropCoords.lat,dropCoords.lon,true);
+
+}
+
+}
+
+async function placeDestPin(lat,lon,skipMove){
+
+dropCoords={lat,lon};
+
+if(!destMarker){
+
+destMarker=L.marker([lat,lon],{draggable:true}).addTo(leafletMap);
+
+destMarker.on('dragend',async ()=>{
+
+const p=destMarker.getLatLng();
+
+await placeDestPin(p.lat,p.lng,true);
+
+});
+
+}else if(!skipMove){
+
+destMarker.setLatLng([lat,lon]);
+
+}
+
+$('destinationResult').classList.remove('hidden');
+
+$('destinationResult').innerHTML=
+'<span class="small">🔍 Address dhoondha ja raha hai…</span>';
+
+const d=await reverseGeocode(lat,lon);
+
+$('drop').value=d.text||d.city||'Selected location';
+
+const trip=
+pickupCoords?km(pickupCoords,dropCoords):null;
+
+$('destinationResult').innerHTML=
+
+'<b>🏁 Destination: '+
+(d.text||d.city||'Selected location')+
+'</b><br>'+
+'<b>📏 Pickup → Destination: '+
+(trip!=null?trip.toFixed(1)+' km':'—')+
+'</b>';
 
 }
 
@@ -1175,184 +1285,4 @@ driverOnline
 drivers[0].online=
 driverOnline;
 
-if(driverOnline){
-
-navigator.geolocation?.getCurrentPosition(
-p=>{
-
-driverCoords={
-lat:p.coords.latitude,
-lon:p.coords.longitude
-};
-
-showDriverRequest();
-
-}
-);
-
-}else{
-
-$('driverRequest')
-.classList.add('hidden');
-
-}
-
-}
-
-function acceptRequest(){
-
-accepted=true;
-
-requestPending=false;
-
-$('driverRequest')
-.classList.add('hidden');
-
-$('activeDriverRide')
-.classList.remove('hidden');
-
-$('customerStatus').innerHTML=
-'<b>Driver accepted</b><br>'+
-'Rahul is on the way to pickup.';
-
-$('activePickup').textContent=
-$('pickup').value;
-
-$('activeDrop').textContent=
-$('drop').value;
-
-const adk=
-km(
-driverCoords,
-pickupCoords
-);
-
-const atk=
-km(
-pickupCoords,
-dropCoords
-);
-
-$('activeDriverKm').textContent=
-adk!=null
-?
-adk.toFixed(1)+' km'
-:
-'—';
-
-$('activeTripKm').textContent=
-atk!=null
-?
-atk.toFixed(1)+' km'
-:
-'—';
-
-}
-
-function rejectRequest(){
-
-requestPending=false;
-
-$('driverRequest')
-.classList.add('hidden');
-
-$('customerStatus').innerHTML=
-'<b>Looking for another driver…</b>';
-
-setTimeout(()=>{
-
-requestPending=true;
-
-showDriverRequest();
-
-},1200);
-
-}
-
-function shareWhatsAppLocation(){
-
-if(!pickupCoords){
-
-alert(
-'Current Location pehle select karo.'
-);
-
-return;
-
-}
-
-const msg=
-`Pickup location: https://www.google.com/maps?q=${pickupCoords.lat},${pickupCoords.lon}
-Pickup: ${$('pickup').value}
-Destination: ${$('drop').value}
-Ride: ${selectedRide}
-Payment: Cash only`;
-
-const number=
-prompt(
-'Driver ka WhatsApp number (+91...) enter karo:'
-);
-
-if(number){
-
-window.open(
-'https://wa.me/'+
-number.replace(/\D/g,'')+
-'?text='+
-encodeURIComponent(msg),
-'_blank'
-);
-
-}
-
-}
-
-function shareDriverWhatsApp(){
-
-shareWhatsAppLocation();
-
-}
-
-function completeRide(){
-
-totalRides++;
-
-rideActive=false;
-
-accepted=false;
-
-$('activeDriverRide')
-.classList.add('hidden');
-
-$('customerRide')
-.classList.add('hidden');
-
-alert(
-'Ride completed. Payment: Cash only.'
-);
-
-}
-
-function cancelRide(){
-
-rideActive=false;
-
-requestPending=false;
-
-accepted=false;
-
-$('customerRide')
-.classList.add('hidden');
-
-$('rideChoices')
-.classList.remove('hidden');
-
-$('driverRequest')
-.classList.add('hidden');
-
-}
-
-</script>
-
-</body>
-</html>
+if(driver
