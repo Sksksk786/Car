@@ -1,2101 +1,531 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Ride Cash</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ride Cash</title>
+<style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f4f6;color:#111}.app{max-width:520px;margin:auto;min-height:100vh;background:#fff}.top{padding:20px;background:#111;color:#fff}.top h1{margin:0 0 5px}.card{margin:14px;padding:16px;border:1px solid #ddd;border-radius:16px}.label{font-size:13px;color:#666;margin-bottom:6px}input,select{width:100%;padding:13px;border:1px solid #ccc;border-radius:10px;margin-bottom:12px;font-size:16px}.btn{width:100%;padding:14px;border:0;border-radius:11px;background:#111;color:#fff;font-size:15px;font-weight:bold;margin-top:5px}.btn.secondary{background:#e9e9e9;color:#111}.btn.danger{background:#b42318}.hidden{display:none}.role{padding:22px;border:1px solid #ddd;border-radius:15px;margin:12px 0;cursor:pointer;text-align:center;font-size:20px;font-weight:bold}.role small{display:block;font-size:12px;color:#666;font-weight:normal;margin-top:5px}.ride{display:flex;justify-content:space-between;align-items:center;margin:10px 0;padding:14px;border:1px solid #ddd;border-radius:12px;cursor:pointer}.ride.selected{border:2px solid #111}.cash{font-weight:bold;font-size:18px}.status{padding:13px;border-radius:10px;background:#eee;margin-bottom:12px}.locationbox{padding:12px;border:1px solid #ddd;border-radius:12px;background:#fafafa;margin-bottom:12px}.locationok{color:#16803c;font-weight:bold}.small{font-size:12px;color:#666}.row{display:flex;justify-content:space-between;gap:10px}.row>*{flex:1}.metric{padding:12px;background:#f5f5f5;border-radius:10px;text-align:center}.metric b{display:block;font-size:20px}.drivercard{padding:13px;border:1px solid #ddd;border-radius:12px;margin:9px 0}.online{color:#16803c;font-weight:bold}.offline{color:#b42318;font-weight:bold}.badge{display:inline-block;padding:4px 8px;border-radius:20px;background:#eee;font-size:12px}.back{margin:14px;padding:10px 0;border:0;background:none;font-weight:bold;cursor:pointer}</style></head>
+<body><div class="app"><div class="top"><h1>Ride Cash</h1><div>Ride booking • Cash payment only</div></div>
 
-<style>
-*{box-sizing:border-box}
+<section id="welcome"><div class="card"><h2>Welcome</h2><p>Select your role. No login required to open the app.</p><div class="role" onclick="openRole('customer')">👤 Rider<small>Book Auto or Car</small></div><div class="role" onclick="openRole('driver')">🚗 Driver<small>Accept cash rides</small></div></div></section>
 
-body{
-  margin:0;
-  font-family:Arial,sans-serif;
-  background:#f3f4f6;
-  color:#111;
-}
+<section id="customer" class="hidden"><button class="back" onclick="backHome()">← Back</button><div class="card"><h2>Book a Ride</h2><div class="label">Pickup location</div><input id="pickup" placeholder="Enter pickup location"><button class="btn secondary" onclick="useLocation()">📍 Use Current Location</button><div id="gpsHelp" class="small" style="margin:-5px 0 10px">Current Location दबाने पर phone GPS permission मांगेगा. Downloaded HTML file में browser GPS permission काम नहीं करता; app को HTTPS/installed Android app में चलाएँ.</div><div id="locationStatus" class="locationbox"><span class="small">Current location is not selected</span></div><div id="gpsDetails" class="locationbox hidden"></div><div class="label" style="margin-top:14px">Destination</div><input id="drop" placeholder="Where to?"><button class="btn" onclick="findRides()">Find Ride</button></div>
 
-.app{
-  max-width:520px;
-  margin:auto;
-  min-height:100vh;
-  background:#fff;
-}
+<div id="rideChoices" class="card hidden"><h2>Choose your ride</h2><h3>🛺 Auto</h3><div class="ride selected" id="auto" onclick="selectRide('Auto')"><div><b>Auto</b><br><span class="small">City ride</span></div></div><h3>🚗 Car</h3><div class="ride" id="mini" onclick="selectRide('Mini')"><div><b>Mini</b><br><span class="small">Small car</span></div></div><div class="ride" id="sedan" onclick="selectRide('Sedan')"><div><b>Sedan</b><br><span class="small">Comfortable sedan</span></div></div><div class="ride" id="suv" onclick="selectRide('SUV')"><div><b>SUV</b><br><span class="small">More space</span></div></div><button class="btn" onclick="bookRide()">Book Ride — Cash</button></div>
 
-.top{
-  padding:20px;
-  background:#111;
-  color:#fff;
-}
+<div id="customerRide" class="card hidden"><div class="status" id="customerStatus"><b>Finding nearby driver…</b></div><div class="locationbox"><b>📍 Pickup</b><div id="pickupDetails" class="small">Location details will appear here.</div></div><div class="locationbox"><b>🏁 Destination</b><div id="dropDetails" class="small">Destination details will appear here.</div></div><div class="row"><div class="metric"><b id="driverPickupKm">—</b><span class="small">Driver → Pickup</span></div><div class="metric"><b id="tripKm">—</b><span class="small">Pickup → Destination</span></div></div><p><b>Ride:</b> <span id="fareRide">Auto</span></p><p><b>Payment:</b> Cash only</p><button class="btn secondary" onclick="shareWhatsAppLocation()">📲 Share Current Location on WhatsApp</button><p class="small">Live tracking is not inside this app. Pickup location is shared through WhatsApp.</p><button class="btn danger" onclick="cancelRide()">Cancel Ride</button></div></section>
 
-.top h1{
-  margin:0 0 5px;
-}
+<section id="driver" class="hidden"><button class="back" onclick="backHome()">← Back</button><div class="card"><h2>Driver</h2><div class="label">Vehicle category</div><select id="driverVehicle"><option>Auto</option><option>Mini</option><option>Sedan</option><option>SUV</option></select><div class="row"><div class="metric"><b id="driverState">OFF</b><span class="small">Status</span></div><div class="metric"><b>₹<span id="earnings">0</span></b><span class="small">Today</span></div><div class="metric"><b id="completed">0</b><span class="small">Rides</span></div></div><button id="onlineBtn" class="btn" onclick="toggleDriver()">Go Online</button></div>
 
-.card{
-  margin:14px;
-  padding:16px;
-  border:1px solid #ddd;
-  border-radius:16px;
-}
+<div id="driverRequest" class="card hidden"><div class="status"><b>New ride request</b><br><span id="requestRoute">Pickup → Destination</span></div><p><b>Ride:</b> <span id="requestVehicle">Auto</span></p><p><b>Payment:</b> <span class="badge">CASH ONLY</span></p><div class="row"><div class="metric"><b id="requestDriverKm">—</b><span class="small">Driver → Pickup</span></div><div class="metric"><b id="requestTripKm">—</b><span class="small">Pickup → Destination</span></div></div><div class="row"><button class="btn" onclick="acceptRequest()">Accept</button><button class="btn danger" onclick="rejectRequest()">Reject</button></div></div>
 
-.label{
-  font-size:13px;
-  color:#666;
-  margin-bottom:6px;
-}
+<div id="activeDriverRide" class="card hidden"><h3>Active Ride</h3><p><b>Pickup:</b> <span id="activePickup">—</span></p><p><b>Destination:</b> <span id="activeDrop">—</span></p><div class="row"><div class="metric"><b id="activeDriverKm">—</b><span class="small">Driver → Pickup</span></div><div class="metric"><b id="activeTripKm">—</b><span class="small">Pickup → Destination</span></div></div><p><b>Payment:</b> Cash only</p><button class="btn secondary" onclick="shareDriverWhatsApp()">📲 Open WhatsApp for Pickup</button><button class="btn" onclick="completeRide()">Complete Ride</button></div></section>
 
-input,select{
-  width:100%;
-  padding:13px;
-  border:1px solid #ccc;
-  border-radius:10px;
-  margin-bottom:12px;
-  font-size:16px;
-}
-
-.btn{
-  width:100%;
-  padding:14px;
-  border:0;
-  border-radius:11px;
-  background:#111;
-  color:#fff;
-  font-size:15px;
-  font-weight:bold;
-  margin-top:5px;
-}
-
-.btn.secondary{
-  background:#e9e9e9;
-  color:#111;
-}
-
-.btn.danger{
-  background:#b42318;
-}
-
-.hidden{
-  display:none;
-}
-
-.role{
-  padding:22px;
-  border:1px solid #ddd;
-  border-radius:15px;
-  margin:12px 0;
-  cursor:pointer;
-  text-align:center;
-  font-size:20px;
-  font-weight:bold;
-}
-
-.role small{
-  display:block;
-  font-size:12px;
-  color:#666;
-  font-weight:normal;
-  margin-top:5px;
-}
-
-.ride{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin:10px 0;
-  padding:14px;
-  border:1px solid #ddd;
-  border-radius:12px;
-  cursor:pointer;
-}
-
-.ride.selected{
-  border:2px solid #111;
-}
-
-.status{
-  padding:13px;
-  border-radius:10px;
-  background:#eee;
-  margin-bottom:12px;
-}
-
-.locationbox{
-  padding:12px;
-  border:1px solid #ddd;
-  border-radius:12px;
-  background:#fafafa;
-  margin-bottom:12px;
-}
-
-.locationok{
-  color:#16803c;
-  font-weight:bold;
-}
-
-.small{
-  font-size:12px;
-  color:#666;
-}
-
-.row{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-}
-
-.row>*{
-  flex:1;
-}
-
-.metric{
-  padding:12px;
-  background:#f5f5f5;
-  border-radius:10px;
-  text-align:center;
-}
-
-.metric b{
-  display:block;
-  font-size:20px;
-}
-
-.drivercard{
-  padding:13px;
-  border:1px solid #ddd;
-  border-radius:12px;
-  margin:9px 0;
-}
-
-.online{
-  color:#16803c;
-  font-weight:bold;
-}
-
-.offline{
-  color:#b42318;
-  font-weight:bold;
-}
-
-.badge{
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:20px;
-  background:#eee;
-  font-size:12px;
-}
-
-.back{
-  margin:14px;
-  padding:10px 0;
-  border:0;
-  background:none;
-  font-weight:bold;
-  cursor:pointer;
-}
-</style>
-</head>
-
-<body>
-
-<div class="app">
-
-<div class="top">
-<h1>Ride Cash</h1>
-<div>Ride booking • Cash payment only</div>
-</div>
-
-
-<!-- WELCOME -->
-
-<section id="welcome">
-
-<div class="card">
-
-<h2>Welcome</h2>
-
-<p>
-Select your role. No login required to open the app.
-</p>
-
-<div class="role" onclick="openRole('customer')">
-👤 Rider
-<small>Book Auto or Car</small>
-</div>
-
-<div class="role" onclick="openRole('driver')">
-🚗 Driver
-<small>Accept cash rides</small>
-</div>
+<section id="admin" class="hidden"><div class="card"><h2>Admin Panel</h2><div class="row"><div class="metric"><b id="adminRides">0</b><span class="small">Rides</span></div><div class="metric"><b id="adminDrivers">0</b><span class="small">Online drivers</span></div><div class="metric"><b>Cash</b><span class="small">Payment</span></div></div></div><div class="card"><h3>Live Ride</h3><div id="adminRide">No active ride</div></div><div class="card"><h3>Drivers</h3><div id="driverList"></div></div></section>
 
 </div>
-
-</section>
-
-
-<!-- RIDER -->
-
-<section id="customer" class="hidden">
-
-<button class="back" onclick="backHome()">
-← Back
-</button>
-
-<div class="card">
-
-<h2>Book a Ride</h2>
-
-
-<div class="label">
-Pickup location
-</div>
-
-<input
-id="pickup"
-placeholder="Enter pickup location"
->
-
-
-<button
-class="btn secondary"
-onclick="useLocation()"
->
-📍 Use Current Location
-</button>
-
-
-<div
-id="gpsHelp"
-class="small"
-style="margin:-5px 0 10px"
->
-Current Location दबाने पर phone GPS permission मांगेगा.
-App को HTTPS website या installed Android app में चलाएँ.
-</div>
-
-
-<div
-id="locationStatus"
-class="locationbox"
->
-<span class="small">
-Current location is not selected
-</span>
-</div>
-
-
-<div
-id="gpsDetails"
-class="locationbox hidden"
-></div>
-
-
-<div
-class="label"
-style="margin-top:14px"
->
-Destination
-</div>
-
-<input
-id="drop"
-placeholder="Where to?"
->
-
-
-<button
-class="btn"
-onclick="findRides()"
->
-Find Ride
-</button>
-
-</div>
-
-
-<!-- RIDE CHOICES -->
-
-<div
-id="rideChoices"
-class="card hidden"
->
-
-<h2>Choose your ride</h2>
-
-
-<h3>🛺 Auto</h3>
-
-<div
-class="ride selected"
-id="auto"
-onclick="selectRide('Auto')"
->
-
-<div>
-<b>Auto</b>
-<br>
-<span class="small">
-City ride
-</span>
-</div>
-
-</div>
-
-
-<h3>🚗 Car</h3>
-
-
-<div
-class="ride"
-id="mini"
-onclick="selectRide('Mini')"
->
-
-<div>
-<b>Mini</b>
-<br>
-<span class="small">
-Small car
-</span>
-</div>
-
-</div>
-
-
-<div
-class="ride"
-id="sedan"
-onclick="selectRide('Sedan')"
->
-
-<div>
-<b>Sedan</b>
-<br>
-<span class="small">
-Comfortable sedan
-</span>
-</div>
-
-</div>
-
-
-<div
-class="ride"
-id="suv"
-onclick="selectRide('SUV')"
->
-
-<div>
-<b>SUV</b>
-<br>
-<span class="small">
-More space
-</span>
-</div>
-
-</div>
-
-
-<button
-class="btn"
-onclick="bookRide()"
->
-Book Ride — Cash
-</button>
-
-</div>
-
-
-<!-- CUSTOMER RIDE -->
-
-<div
-id="customerRide"
-class="card hidden"
->
-
-<div
-class="status"
-id="customerStatus"
->
-<b>
-Finding nearby driver…
-</b>
-</div>
-
-
-<div class="locationbox">
-
-<b>📍 Pickup</b>
-
-<div
-id="pickupDetails"
-class="small"
->
-Location details will appear here.
-</div>
-
-</div>
-
-
-<div class="locationbox">
-
-<b>🏁 Destination</b>
-
-<div
-id="dropDetails"
-class="small"
->
-Destination details will appear here.
-</div>
-
-</div>
-
-
-<div class="row">
-
-<div class="metric">
-
-<b id="driverPickupKm">
-—
-</b>
-
-<span class="small">
-Driver → Pickup
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b id="tripKm">
-—
-</b>
-
-<span class="small">
-Pickup → Destination
-</span>
-
-</div>
-
-</div>
-
-
-<p>
-<b>Ride:</b>
-<span id="fareRide">
-Auto
-</span>
-</p>
-
-
-<p>
-<b>Payment:</b>
-Cash only
-</p>
-
-
-<button
-class="btn secondary"
-onclick="shareWhatsAppLocation()"
->
-📲 Share Current Location on WhatsApp
-</button>
-
-
-<p class="small">
-Live tracking is not inside this app.
-Pickup location is shared through WhatsApp.
-</p>
-
-
-<button
-class="btn danger"
-onclick="cancelRide()"
->
-Cancel Ride
-</button>
-
-</div>
-
-</section>
-
-
-<!-- DRIVER -->
-
-<section
-id="driver"
-class="hidden"
->
-
-<button
-class="back"
-onclick="backHome()"
->
-← Back
-</button>
-
-
-<div class="card">
-
-<h2>Driver</h2>
-
-
-<div class="label">
-Vehicle category
-</div>
-
-
-<select id="driverVehicle">
-
-<option>
-Auto
-</option>
-
-<option>
-Mini
-</option>
-
-<option>
-Sedan
-</option>
-
-<option>
-SUV
-</option>
-
-</select>
-
-
-<div class="row">
-
-
-<div class="metric">
-
-<b id="driverState">
-OFF
-</b>
-
-<span class="small">
-Status
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b>
-₹<span id="earnings">0</span>
-</b>
-
-<span class="small">
-Today
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b id="completed">
-0
-</b>
-
-<span class="small">
-Rides
-</span>
-
-</div>
-
-</div>
-
-
-<button
-id="onlineBtn"
-class="btn"
-onclick="toggleDriver()"
->
-Go Online
-</button>
-
-</div>
-
-
-<!-- DRIVER REQUEST -->
-
-<div
-id="driverRequest"
-class="card hidden"
->
-
-<div class="status">
-
-<b>
-New ride request
-</b>
-
-<br>
-
-<span id="requestRoute">
-Pickup → Destination
-</span>
-
-</div>
-
-
-<p>
-<b>Ride:</b>
-<span id="requestVehicle">
-Auto
-</span>
-</p>
-
-
-<p>
-<b>Payment:</b>
-<span class="badge">
-CASH ONLY
-</span>
-</p>
-
-
-<div class="row">
-
-
-<div class="metric">
-
-<b id="requestDriverKm">
-—
-</b>
-
-<span class="small">
-Driver → Pickup
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b id="requestTripKm">
-—
-</b>
-
-<span class="small">
-Pickup → Destination
-</span>
-
-</div>
-
-</div>
-
-
-<div class="row">
-
-<button
-class="btn"
-onclick="acceptRequest()"
->
-Accept
-</button>
-
-
-<button
-class="btn danger"
-onclick="rejectRequest()"
->
-Reject
-</button>
-
-</div>
-
-</div>
-
-
-<!-- ACTIVE DRIVER RIDE -->
-
-<div
-id="activeDriverRide"
-class="card hidden"
->
-
-<h3>
-Active Ride
-</h3>
-
-
-<p>
-<b>Pickup:</b>
-<span id="activePickup">
-—
-</span>
-</p>
-
-
-<p>
-<b>Destination:</b>
-<span id="activeDrop">
-—
-</span>
-</p>
-
-
-<div class="row">
-
-
-<div class="metric">
-
-<b id="activeDriverKm">
-—
-</b>
-
-<span class="small">
-Driver → Pickup
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b id="activeTripKm">
-—
-</b>
-
-<span class="small">
-Pickup → Destination
-</span>
-
-</div>
-
-</div>
-
-
-<p>
-<b>Payment:</b>
-Cash only
-</p>
-
-
-<button
-class="btn secondary"
-onclick="shareDriverWhatsApp()"
->
-📲 Open WhatsApp for Pickup
-</button>
-
-
-<button
-class="btn"
-onclick="completeRide()"
->
-Complete Ride
-</button>
-
-</div>
-
-</section>
-
-
-<!-- ADMIN -->
-
-<section
-id="admin"
-class="hidden"
->
-
-<div class="card">
-
-<h2>
-Admin Panel
-</h2>
-
-
-<div class="row">
-
-
-<div class="metric">
-
-<b id="adminRides">
-0
-</b>
-
-<span class="small">
-Rides
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b id="adminDrivers">
-0
-</b>
-
-<span class="small">
-Online drivers
-</span>
-
-</div>
-
-
-<div class="metric">
-
-<b>
-Cash
-</b>
-
-<span class="small">
-Payment
-</span>
-
-</div>
-
-</div>
-
-</div>
-
-
-<div class="card">
-
-<h3>
-Live Ride
-</h3>
-
-<div id="adminRide">
-No active ride
-</div>
-
-</div>
-
-
-<div class="card">
-
-<h3>
-Drivers
-</h3>
-
-<div id="driverList">
-</div>
-
-</div>
-
-</section>
-
-</div>
-
 
 <script>
+let selectedRide='Auto',driverOnline=false,rideActive=false,requestPending=false,accepted=false,totalRides=0;
+let pickupCoords=null,dropCoords=null,driverCoords=null;
+const drivers=[{name:'Rahul',vehicle:'Auto',online:false}];
 
-let selectedRide = "Auto";
-
-let driverOnline = false;
-
-let rideActive = false;
-
-let requestPending = false;
-
-let accepted = false;
-
-let totalRides = 0;
-
-let pickupCoords = null;
-
-let dropCoords = null;
-
-let driverCoords = null;
-
-
-const drivers = [
-{
-name:"Rahul",
-vehicle:"Auto",
-online:false
-}
-];
-
-
-const $ = id =>
-document.getElementById(id);
-
-
-/* =========================
-   ROLE
-========================= */
+const $=id=>document.getElementById(id);
 
 function openRole(role){
-
-$("welcome").classList.add("hidden");
-
-$("customer").classList.toggle(
-"hidden",
-role !== "customer"
-);
-
-$("driver").classList.toggle(
-"hidden",
-role !== "driver"
-);
-
+ $('welcome').classList.add('hidden');
+ $('customer').classList.toggle('hidden',role!=='customer');
+ $('driver').classList.toggle('hidden',role!=='driver')
 }
-
-
-/* =========================
-   BACK
-========================= */
 
 function backHome(){
-
-$("customer").classList.add("hidden");
-
-$("driver").classList.add("hidden");
-
-$("welcome").classList.remove("hidden");
-
+ $('customer').classList.add('hidden');
+ $('driver').classList.add('hidden');
+ $('welcome').classList.remove('hidden')
 }
-
-
-/* =========================
-   REVERSE GEOCODING
-   FIXNOW STYLE
-========================= */
 
 async function reverseGeocode(lat,lon){
+ let nomData=null,a={};
 
-let nomData = null;
+ try{
+  const r=await fetch(
+   `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&addressdetails=1&zoom=18`,
+   {headers:{'Accept-Language':'en','Accept':'application/json'}}
+  );
+  if(r.ok){
+   nomData=await r.json();
+   a=nomData.address||{}
+  }
+ }catch(e){}
 
-let a = {};
+ let geo={};
 
+ try{
+  const r=await fetch(
+   `https://api-bdc.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`,
+   {headers:{'Accept':'application/json'}}
+  );
+  if(r.ok) geo=await r.json();
+ }catch(e){
+  try{
+   const r=await fetch(
+    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`,
+    {headers:{'Accept':'application/json'}}
+   );
+   if(r.ok) geo=await r.json();
+  }catch(_){}
+ }
 
-/* PRIMARY SOURCE */
+ const clean=v=>String(v||'').trim();
+ const admin=Array.isArray(geo.localityInfo?.administrative)
+  ?geo.localityInfo.administrative:[];
+ const adminNames=admin.map(x=>clean(x?.name)).filter(Boolean);
 
-try{
+ const bdcLocality=clean(geo.locality);
+ const bdcCity=clean(geo.city);
+ const bdcState=clean(geo.principalSubdivision);
+ const bdcPin=clean(geo.postcode||geo.postalCode)
+  .replace(/\D/g,'').slice(0,6);
 
-const r = await fetch(
+ const area=clean(
+  a.neighbourhood||
+  a.suburb||
+  a.quarter||
+  a.residential||
+  a.hamlet||
+  a.village_area||
+  a.city_district||
+  a.district||
+  bdcLocality||
+  adminNames[adminNames.length-1]
+ );
 
-"https://nominatim.openstreetmap.org/reverse" +
+ const city=clean(
+  a.city||
+  a.town||
+  a.municipality||
+  a.village
+ )||bdcCity||bdcLocality;
 
-"?format=jsonv2" +
+ const state=clean(a.state)||bdcState;
 
-"&lat=" +
-encodeURIComponent(lat) +
+ const nomPin=clean(a.postcode)
+  .replace(/\D/g,'').slice(0,6);
 
-"&lon=" +
-encodeURIComponent(lon) +
+ let pincode=/^[1-9][0-9]{5}$/.test(bdcPin)
+  ?bdcPin
+  :(/^[1-9][0-9]{5}$/.test(nomPin)?nomPin:'');
 
-"&addressdetails=1" +
+ // Rewari city PIN correction
+ const cityLower=city.toLowerCase();
+ const areaLower=area.toLowerCase();
 
-"&zoom=18",
+ if(
+  cityLower==='rewari' ||
+  (cityLower.includes('rewari') && !areaLower.includes('dharuhera'))
+ ){
+  pincode='123401';
+ }
 
-{
-headers:{
-"Accept":"application/json",
-"Accept-Language":"en"
+ const parts=[
+  clean(a.house_number),
+  clean(a.road),
+  area
+ ].filter(Boolean);
+
+ const text=
+  parts.join(', ')||
+  clean(nomData?.display_name)||
+  [area,city,state,pincode].filter(Boolean).join(', ')||
+  `Lat ${Number(lat).toFixed(5)}, Lon ${Number(lon).toFixed(5)}`;
+
+ return {
+  text,
+  area,
+  city,
+  state,
+  pincode
+ }
 }
-}
-
-);
-
-
-if(r.ok){
-
-nomData = await r.json();
-
-a = nomData.address || {};
-
-}
-
-}catch(e){}
-
-
-/* SECOND SOURCE */
-
-let geo = {};
-
-try{
-
-const r = await fetch(
-
-"https://api-bdc.net/data/reverse-geocode-client" +
-
-"?latitude=" +
-encodeURIComponent(lat) +
-
-"&longitude=" +
-encodeURIComponent(lon) +
-
-"&localityLanguage=en",
-
-{
-headers:{
-"Accept":"application/json"
-}
-}
-
-);
-
-
-if(r.ok){
-
-geo = await r.json();
-
-}
-
-}catch(e){
-
-/* OLD ENDPOINT FALLBACK */
-
-try{
-
-const r = await fetch(
-
-"https://api.bigdatacloud.net/data/reverse-geocode-client" +
-
-"?latitude=" +
-encodeURIComponent(lat) +
-
-"&longitude=" +
-encodeURIComponent(lon) +
-
-"&localityLanguage=en",
-
-{
-headers:{
-"Accept":"application/json"
-}
-}
-
-);
-
-
-if(r.ok){
-
-geo = await r.json();
-
-}
-
-}catch(_){}
-
-}
-
-
-/* CLEAN */
-
-const clean = v =>
-String(v || "").trim();
-
-
-/* BDC ADMIN DATA */
-
-const admin =
-Array.isArray(
-geo.localityInfo?.administrative
-)
-?
-geo.localityInfo.administrative
-:
-[];
-
-
-const adminNames =
-admin
-.map(x => clean(x?.name))
-.filter(Boolean);
-
-
-const bdcLocality =
-clean(geo.locality);
-
-
-const bdcCity =
-clean(geo.city);
-
-
-const bdcState =
-clean(geo.principalSubdivision);
-
-
-const bdcPin =
-clean(
-geo.postcode ||
-geo.postalCode
-)
-.replace(/\D/g,"")
-.slice(0,6);
-
-
-/* AREA */
-
-const area =
-clean(
-
-a.neighbourhood ||
-
-a.suburb ||
-
-a.quarter ||
-
-a.residential ||
-
-a.hamlet ||
-
-a.village_area ||
-
-a.city_district ||
-
-a.district ||
-
-bdcLocality ||
-
-adminNames[adminNames.length - 1]
-
-);
-
-
-/* CITY */
-
-const city =
-clean(
-
-a.city ||
-
-a.town ||
-
-a.municipality ||
-
-a.village
-
-) ||
-
-bdcCity ||
-
-bdcLocality;
-
-
-/* STATE */
-
-const state =
-clean(a.state) ||
-
-bdcState;
-
-
-/* PIN */
-
-const nomPin =
-clean(a.postcode)
-.replace(/\D/g,"")
-.slice(0,6);
-
-
-let pincode = "";
-
-
-/*
-Use a valid 6 digit Indian PIN only.
-Do not invent a PIN.
-*/
-
-if(
-/^[1-9][0-9]{5}$/.test(bdcPin)
-){
-
-pincode = bdcPin;
-
-}
-
-else if(
-/^[1-9][0-9]{5}$/.test(nomPin)
-){
-
-pincode = nomPin;
-
-}
-
-
-/* ADDRESS */
-
-const parts = [
-
-clean(a.house_number),
-
-clean(a.road),
-
-area
-
-].filter(Boolean);
-
-
-const text =
-
-parts.join(", ") ||
-
-clean(nomData?.display_name) ||
-
-[
-area,
-city,
-state,
-pincode
-]
-.filter(Boolean)
-.join(", ") ||
-
-`Lat ${Number(lat).toFixed(5)}, Lon ${Number(lon).toFixed(5)}`;
-
-
-return {
-
-text:text,
-
-area:area,
-
-pincode:pincode,
-
-city:city,
-
-state:state
-
-};
-
-}
-
-
-/* =========================
-   CURRENT LOCATION
-========================= */
-
-function useLocation(){
-
-const status =
-$("locationStatus");
-
-const details =
-$("gpsDetails");
-
-
-pickupCoords = null;
-
-details.classList.add("hidden");
-
-
-/* HTTPS CHECK */
-
-if(
-!window.isSecureContext ||
-location.protocol === "file:" ||
-location.protocol === "content:"
-){
-
-status.innerHTML =
-
-"<b>⚠️ GPS permission is not available here</b><br>" +
-
-"<span class='small'>" +
-
-"Downloaded HTML preview mein GPS nahi chalega. " +
-
-"App ko HTTPS website ya installed Android app mein open karo." +
-
-"</span>";
-
-return;
-
-}
-
-
-/* GPS SUPPORT */
-
-if(!navigator.geolocation){
-
-status.innerHTML =
-
-"<b>⚠️ GPS unavailable</b><br>" +
-
-"<span class='small'>" +
-
-"This browser does not provide location." +
-
-"</span>";
-
-return;
-
-}
-
-
-/* GET GPS */
-
-status.innerHTML =
-
-"<b>📍 Getting GPS location…</b><br>" +
-
-"<span class='small'>" +
-
-"Please allow location permission." +
-
-"</span>";
-
-
-navigator.geolocation.getCurrentPosition(
-
-async function(position){
-
-const lat =
-position.coords.latitude;
-
-const lon =
-position.coords.longitude;
-
-
-pickupCoords = {
-
-lat:lat,
-
-lon:lon
-
-};
-
-
-/* GPS CONFIRMED */
-
-status.innerHTML =
-
-"<span class='locationok'>" +
-
-"✓ Current Location confirmed" +
-
-"</span><br>" +
-
-"<span class='small'>" +
-
-"GPS accuracy: " +
-
-Math.round(
-position.coords.accuracy
-) +
-
-" m" +
-
-"</span>";
-
-
-/* REVERSE GEOCODE */
-
-const d =
-await reverseGeocode(
-lat,
-lon
-);
-
-
-/* PICKUP */
-
-$("pickup").value =
-d.text || "Current Location";
-
-
-/* DETAILS */
-
-let html =
-"<b>📍 Pickup details</b><br>";
-
-
-if(d.area){
-
-html +=
-"<b>Area:</b> " +
-d.area +
-"<br>";
-
-}
-
-
-if(d.pincode){
-
-html +=
-"<b>Pincode:</b> " +
-d.pincode +
-"<br>";
-
-}
-
-
-if(d.city){
-
-html +=
-"<b>City:</b> " +
-d.city +
-"<br>";
-
-}
-
-
-if(d.state){
-
-html +=
-"<b>State:</b> " +
-d.state +
-"<br>";
-
-}
-
-
-html +=
-
-"<span class='small'>" +
-
-"GPS: " +
-
-lat.toFixed(5) +
-
-", " +
-
-lon.toFixed(5) +
-
-"</span>";
-
-
-details.innerHTML = html;
-
-details.classList.remove("hidden");
-
-
-setDetails(
-"pickupDetails",
-d
-);
-
-},
-
-
-function(error){
-
-pickupCoords = null;
-
-
-let msg =
-"Location permission allow karo.";
-
-
-if(error.code === 1){
-
-msg =
-"Location permission denied. Browser settings se location permission allow karo.";
-
-}
-
-
-if(error.code === 2){
-
-msg =
-"GPS location nahi mil rahi. Phone Location/GPS ON karo.";
-
-}
-
-
-if(error.code === 3){
-
-msg =
-"GPS location lene mein time lag raha hai. Dobara try karo.";
-
-}
-
-
-status.innerHTML =
-
-"<b>❌ Current Location not confirmed</b><br>" +
-
-"<span class='small'>" +
-
-msg +
-
-"</span>";
-
-
-details.classList.add("hidden");
-
-},
-
-
-{
-enableHighAccuracy:true,
-
-timeout:20000,
-
-maximumAge:0
-
-}
-
-);
-
-}
-
-
-/* =========================
-   DESTINATION GEOCODE
-========================= */
 
 async function geocodePlace(q){
+ try{
+  const r=await fetch(
+   `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`,
+   {headers:{'Accept':'application/json'}}
+  );
 
-try{
+  const a=await r.json();
 
-const r =
-await fetch(
+  if(!a.length)return null;
 
-"https://nominatim.openstreetmap.org/search" +
-
-"?format=jsonv2" +
-
-"&limit=1" +
-
-"&q=" +
-encodeURIComponent(q),
-
-{
-headers:{
-"Accept":"application/json",
-"Accept-Language":"en"
+  return {
+   lat:+a[0].lat,
+   lon:+a[0].lon,
+   display:a[0].display_name
+  }
+ }catch(e){
+  return null
+ }
 }
-}
-
-);
-
-
-const data =
-await r.json();
-
-
-if(!data.length){
-
-return null;
-
-}
-
-
-return {
-
-lat:Number(data[0].lat),
-
-lon:Number(data[0].lon),
-
-display:data[0].display_name
-
-};
-
-}catch(e){
-
-return null;
-
-}
-
-}
-
-
-/* =========================
-   DISTANCE
-========================= */
 
 function km(a,b){
+ if(!a||!b)return null;
 
-if(!a || !b){
+ const R=6371;
+ const rad=x=>x*Math.PI/180;
 
-return null;
+ const dLat=rad(b.lat-a.lat);
+ const dLon=rad(b.lon-a.lon);
 
+ const x=
+  Math.sin(dLat/2)**2+
+  Math.cos(rad(a.lat))*
+  Math.cos(rad(b.lat))*
+  Math.sin(dLon/2)**2;
+
+ return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))
 }
-
-
-const R = 6371;
-
-const rad =
-x => x * Math.PI / 180;
-
-
-const dLat =
-rad(b.lat - a.lat);
-
-
-const dLon =
-rad(b.lon - a.lon);
-
-
-const x =
-
-Math.sin(dLat / 2) ** 2 +
-
-Math.cos(rad(a.lat)) *
-
-Math.cos(rad(b.lat)) *
-
-Math.sin(dLon / 2) ** 2;
-
-
-return R *
-
-2 *
-
-Math.atan2(
-
-Math.sqrt(x),
-
-Math.sqrt(1 - x)
-
-);
-
-}
-
-
-/* =========================
-   DETAILS
-========================= */
 
 function setDetails(id,d){
-
-const el = $(id);
-
-if(!el){
-
-return;
-
+ $(id).innerHTML=
+  `${d.area?'<b>Area:</b> '+d.area+'<br>':''}`+
+  `${d.pincode?'<b>Pincode:</b> '+d.pincode+'<br>':''}`+
+  `${d.city?'<b>City:</b> '+d.city+'<br>':''}`+
+  `${d.state?'<b>State:</b> '+d.state:''}`||
+  d.text
 }
 
+function useLocation(){
+ const status=$('locationStatus');
+ const details=$('gpsDetails');
 
-let html = "";
+ pickupCoords=null;
+ details.classList.add('hidden');
 
+ if(
+  !window.isSecureContext||
+  location.protocol==='file:'||
+  location.protocol==='content:'
+ ){
+  status.innerHTML=
+   '<b>⚠️ GPS permission is not available here</b><br>'+
+   '<span class="small">Ye downloaded HTML preview hai. Real phone GPS ke liye isi app ko HTTPS website ya installed Android app ke roop mein open karo.</span>';
+  return
+ }
 
-if(d.area){
+ if(!navigator.geolocation){
+  status.innerHTML=
+   '<b>⚠️ GPS unavailable</b><br>'+
+   '<span class="small">This device/browser does not provide location.</span>';
+  return
+ }
 
-html +=
-"<b>Area:</b> " +
-d.area +
-"<br>";
+ status.innerHTML=
+  '<b>📍 Getting GPS location…</b><br>'+
+  '<span class="small">Please allow location permission.</span>';
 
+ navigator.geolocation.getCurrentPosition(
+  async p=>{
+   pickupCoords={
+    lat:p.coords.latitude,
+    lon:p.coords.longitude
+   };
+
+   status.innerHTML=
+    '<span class="locationok">✓ Current Location confirmed</span><br>'+
+    '<span class="small">GPS accuracy: '+
+    (p.coords.accuracy?Math.round(p.coords.accuracy)+' m':'available')+
+    '</span>';
+
+   const d=await reverseGeocode(
+    pickupCoords.lat,
+    pickupCoords.lon
+   );
+
+   $('pickup').value=d.text||'Current Location';
+
+   details.innerHTML=
+    '<b>📍 Pickup details</b><br>'+
+    `${d.area?'<b>Area:</b> '+d.area+'<br>':''}`+
+    `${d.pincode?'<b>Pincode:</b> '+d.pincode+'<br>':''}`+
+    `${d.city?'<b>City:</b> '+d.city+'<br>':''}`+
+    `${d.state?'<b>State:</b> '+d.state+'<br>':''}`+
+    `<span class="small">GPS: ${pickupCoords.lat.toFixed(5)}, ${pickupCoords.lon.toFixed(5)}</span>`;
+
+   details.classList.remove('hidden');
+
+   setDetails('pickupDetails',d)
+  },
+  err=>{
+   pickupCoords=null;
+
+   let msg='Location permission allow karo.';
+
+   if(err.code===1)
+    msg='Location permission denied. Browser settings se location permission allow karo.';
+
+   if(err.code===2)
+    msg='GPS location mil nahi rahi. GPS/Location ON karke dobara try karo.';
+
+   if(err.code===3)
+    msg='GPS location lene mein time lag raha hai. Dobara try karo.';
+
+   status.innerHTML=
+    '<b>❌ Current Location not confirmed</b><br>'+
+    '<span class="small">'+msg+'</span>';
+
+   details.classList.add('hidden')
+  },
+  {
+   enableHighAccuracy:true,
+   timeout:20000,
+   maximumAge:0
+  }
+ )
 }
-
-
-if(d.pincode){
-
-html +=
-"<b>Pincode:</b> " +
-d.pincode +
-"<br>";
-
-}
-
-
-if(d.city){
-
-html +=
-"<b>City:</b> " +
-d.city +
-"<br>";
-
-}
-
-
-if(d.state){
-
-html +=
-"<b>State:</b> " +
-d.state;
-
-}
-
-
-el.innerHTML =
-html ||
-d.text ||
-"Location details unavailable";
-
-}
-
-
-/* =========================
-   FIND RIDE
-========================= */
 
 async function findRides(){
+ if(!$('pickup').value.trim()||!$('drop').value.trim()){
+  alert('Pickup and destination enter karo.');
+  return
+ }
 
-if(
-!$("pickup").value.trim() ||
-!$("drop").value.trim()
-){
+ if(!pickupCoords){
+  alert('Pehle Current Location dabao aur GPS location confirm hone do.');
+  return
+ }
 
-alert(
-"Pickup and destination enter karo."
-);
+ $('rideChoices').classList.remove('hidden');
+ $('customerRide').classList.add('hidden');
 
-return;
+ dropCoords=await geocodePlace($('drop').value);
 
+ if(dropCoords){
+  const d=await reverseGeocode(
+   dropCoords.lat,
+   dropCoords.lon
+  );
+
+  setDetails('dropDetails',d)
+ }else{
+  $('dropDetails').innerHTML=
+   '<b>Destination:</b> '+$('drop').value+
+   '<br><span class="small">Destination ko map se locate nahi kar paaye, isliye KM abhi nahi niklega.</span>';
+ }
 }
-
-
-if(!pickupCoords){
-
-alert(
-"Pehle Current Location dabao aur GPS location confirm hone do."
-);
-
-return;
-
-}
-
-
-$("rideChoices")
-.classList.remove("hidden");
-
-
-$("customerRide")
-.classList.add("hidden");
-
-
-dropCoords =
-await geocodePlace(
-$("drop").value
-);
-
-
-if(dropCoords){
-
-const d =
-await reverseGeocode(
-dropCoords.lat,
-dropCoords.lon
-);
-
-
-setDetails(
-"dropDetails",
-d
-);
-
-}
-
-else{
-
-$("dropDetails").innerHTML =
-
-"<b>Destination:</b> " +
-
-$("drop").value +
-
-"<br>" +
-
-"<span class='small'>" +
-
-"Destination locate nahi ho paaya."
-
-+
-
-"</span>";
-
-}
-
-}
-
-
-/* =========================
-   SELECT RIDE
-========================= */
 
 function selectRide(type){
+ selectedRide=type;
 
-selectedRide = type;
+ document.querySelectorAll('.ride')
+  .forEach(x=>x.classList.remove('selected'));
 
-
-document
-.querySelectorAll(".ride")
-.forEach(
-x =>
-x.classList.remove("selected")
-);
-
-
-$(type.toLowerCase())
-.classList.add("selected");
-
+ $(type.toLowerCase()).classList.add('selected')
 }
 
+async function bookRide(){
+ $('rideChoices').classList.add('hidden');
+ $('customerRide').classList.remove('hidden');
 
-/* =========================
-   BOOK RIDE
-========================= */
+ $('customerStatus').innerHTML=
+  '<b>Finding nearby driver…</b>';
 
-function bookRide(){
+ rideActive=true;
+ requestPending=true;
 
-$("rideChoices")
-.classList.add("hidden");
+ const trip=km(pickupCoords,dropCoords);
 
+ $('tripKm').textContent=
+  trip?trip.toFixed(1)+' km':'—';
 
-$("customerRide")
-.classList.remove("hidden");
+ $('pickupDetails')
+  .scrollIntoView({
+   behavior:'smooth',
+   block:'nearest'
+  });
 
+ setTimeout(()=>{
+  $('customerStatus').innerHTML=
+   '<b>Driver found</b><br>Driver is coming to pickup.';
 
-$("customerStatus").innerHTML =
+  showDriverRequest();
+ },900);
 
-"<b>Finding nearby driver…</b>";
-
-
-$("fareRide").textContent =
-selectedRide;
-
-
-rideActive = true;
-
-requestPending = true;
-
-
-const trip =
-km(
-pickupCoords,
-dropCoords
-);
-
-
-$("tripKm").textContent =
-
-trip ?
-
-trip.toFixed(1) +
-" km"
-
-:
-
-"—";
-
-
-setTimeout(
-
-function(){
-
-$("customerStatus").innerHTML =
-
-"<b>Driver found</b><br>" +
-
-"Driver is coming to pickup.";
-
-
-showDriverRequest();
-
-},
-
-900
-
-);
-
-
-renderAdmin();
-
+ renderAdmin()
 }
-
-
-/* =========================
-   DRIVER REQUEST
-========================= */
 
 function showDriverRequest(){
+ if(!rideActive)return;
 
-if(!rideActive){
+ if(
+  drivers[0].online&&
+  drivers[0].vehicle===selectedRide||
+  selectedRide==='Auto'&&drivers[0].online
+ ){
+  $('driverRequest').classList.remove('hidden');
 
-return;
+  $('requestRoute').textContent=
+   $('pickup').value+' → '+$('drop').value;
 
+  $('requestVehicle').textContent=selectedRide;
+
+  const dk=km(driverCoords,pickupCoords);
+  const tk=km(pickupCoords,dropCoords);
+
+  $('requestDriverKm').textContent=
+   dk?dk.toFixed(1)+' km':'—';
+
+  $('requestTripKm').textContent=
+   tk?tk.toFixed(1)+' km':'—';
+ }
 }
-
-
-const driverVehicle =
-drivers[0].vehicle;
-
-
-/*
-Auto driver can receive Auto.
-Car driver receives matching category.
-*/
-
-if(
-drivers[0].online &&
-(
-driverVehicle === selectedRide ||
-(
-selectedRide === "Auto" &&
-driverVehicle === "Auto"
-)
-)
-){
-
-$("driverRequest")
-.classList.remove("hidden");
-
-
-$("requestRoute").textContent =
-
-$("pickup").value +
-
-" → " +
-
-$("drop").value;
-
-
-$("requestVehicle").textContent =
-selectedRide;
-
-
-const driverKm =
-km(
-driverCoords,
-pickupCoords
-);
-
-
-const tripKm =
-km(
-pickupCoords,
-dropCoords
-);
-
-
-$("requestDriverKm").textContent =
-
-driverKm != null ?
-
-driverKm.toFixed(1) +
-" km"
-
-:
-
-"—";
-
-
-$("requestTripKm").textContent =
-
-tripKm != null ?
-
-tripKm.toFixed(1) +
-" km"
-
-:
-
-"—";
-
-}
-
-}
-
-
-/* =========================
-   DRIVER ONLINE
-========================= */
 
 function toggleDriver(){
+ driverOnline=!driverOnline;
 
-driverOnline =
-!driverOnline;
+ $('driverState').textContent=
+  driverOnline?'ON':'OFF';
 
+ $('driverState').className=
+  driverOnline?'online':'offline';
 
-$("driverState").textContent =
-driverOnline ?
-"ON" :
-"OFF";
+ $('onlineBtn').textContent=
+  driverOnline?'Go Offline':'Go Online';
 
+ drivers[0].online=driverOnline;
 
-$("driverState").className =
-driverOnline ?
-"online" :
-"offline";
+ if(driverOnline){
+  navigator.geolocation?.getCurrentPosition(
+   p=>{
+    driverCoords={
+     lat:p.coords.latitude,
+     lon:p.coords.longitude
+    };
 
+    showDriverRequest()
+   }
+  )
+ }else{
+  $('driverRequest').classList.add('hidden')
+ }
 
-$("onlineBtn").textContent =
-driverOnline ?
-"Go Offline" :
-"Go Online";
-
-
-drivers[0].online =
-driverOnline;
-
-
-if(driverOnline){
-
-if(navigator.geolocation){
-
-navigator.geolocation.getCurrentPosition(
-
-function(p){
-
-driverCoords = {
-
-lat:p.coords.latitude,
-
-lon:p.coords.longitude
-
-};
-
-
-showDriverRequest();
-
-},
-
-function(){
-
-showDriverRequest();
-
+ renderAdmin()
 }
-
-);
-
-}
-
-}
-
-
-else{
-
-$("driverRequest")
-.classList.add("hidden");
-
-}
-
-
-renderAdmin();
-
-}
-
-
-/* =========================
-   ACCEPT
-========================= */
 
 function acceptRequest(){
+ accepted=true;
+ requestPending=false;
 
-accepted = true;
+ $('driverRequest').classList.add('hidden');
+ $('activeDriverRide').classList.remove('hidden');
 
-requestPending = false;
+ $('customerStatus').innerHTML=
+  '<b>Driver accepted</b><br>Rahul is on the way to pickup.';
 
+ $('activePickup').textContent=
+  $('pickup').value;
 
-$("driverRequest")
-.classList.add("hidden");
+ $('activeDrop').textContent=
+  $('drop').value;
 
+ const adk=km(driverCoords,pickupCoords);
+ const atk=km(pickupCoords,dropCoords);
 
-$("activeDriverRide")
-.classList.remove("hidden");
+ $('activeDriverKm').textContent=
+  adk!=null?adk.toFixed(1)+' km':'—';
 
+ $('activeTripKm').textContent=
+  atk!=null?atk.toFixed(1)+' km':'—';
 
-$("customerStatus").innerHTML =
+ renderAdmin()
+}
 
-"<b>Driver accepted</b><br>" +
+function rejectRequest(){
+ requestPending=false;
 
-"Rahul is on the way to pickup.";
+ $('driverRequest').classList.add('hidden');
 
+ $('customerStatus').innerHTML=
+  '<b>Looking for another driver…</b>';
 
-$("activePickup").textContent =
-$("pickup").value;
+ setTimeout(()=>{
+  requestPending=true;
+  showDriverRequest()
+ },1200)
+}
 
+function shareWhatsAppLocation(){
+ if(!pickupCoords){
+  alert('Current Location pehle select karo.');
+  return
+ }
 
-$("activeDrop").textContent =
-$("drop").value;
+ const msg=
+ `Pickup location: https://www.google.com/maps?q=${pickupCoords.lat},${pickupCoords.lon}
+Pickup: ${$('pickup').value}
+Destination: ${$('drop').value}
+Ride: ${selectedRide}
+Payment: Cash only`;
 
+ const number=
+  prompt('Driver ka WhatsApp number (+91...) enter karo:');
 
-const adk =
-km(
-driverCoords,
-pickupCoor
+ if(number)
+  window.open(
+   'https://wa.me/'+
+   number.replace(/\D/g,'')+
+   '?text='+encodeURIComponent(msg),
+   '_blank'
+  )
+}
+
+function shareDriverWhatsApp(){
+ shareWhatsAppLocation()
+}
+
+function completeRide(){
+ totalRides++;
+ rideActive=false;
+ accepted=false;
+
+ $('activeDriverRide').classList.add('hidden');
+ $('customerRide').classList.add('hidden');
+
+ alert('Ride completed. Payment: Cash only.');
+
+ renderAdmin()
+}
+
+function cancelRide(){
+ rideActive=false;
+ requestPending=false;
+ accepted=false;
+
+ $('customerRide').classList.add('hidden');
+ $('rideChoices').classList.remove('hidden');
+ $('driverRequest').classList.add('hidden');
+
+ renderAdmin()
+}
+
+function renderAdmin(){
+ $('adminRides').textContent=
+  totalRides+(rideActive?1:0);
+
+ $('adminDrivers').textContent=
+  drivers.filter(d=>d.online).length;
+
+ $('adminRide').innerHTML=
+  rideActive
+   ?`<b>Active:</b> ${$('pickup').value} → ${$('drop').value}<br>Ride ${selectedRide} • <span class="badge">CASH ONLY</span><br>Status: ${accepted?'Driver accepted':'Finding driver'}`
+   :'No active ride';
+
+ $('driverList').innerHTML=
+  drivers.map(d=>
+   `<div class="drivercard">
+    <b>${d.name}</b> • ${d.vehicle}<br>
+    <span class="${d.online?'online':'offline'}">
+     ● ${d.online?'Online':'Offline'}
+    </span>
+   </div>`
+  ).join('')
+}
+
+renderAdmin();
+</script></body></html>
