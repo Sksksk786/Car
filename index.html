@@ -633,7 +633,7 @@ async function geocodePlace(q){
 try{
 
 const r=await fetch(
-`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`,
+`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(q)}`,
 {
 headers:{
 'Accept':'application/json'
@@ -641,10 +641,35 @@ headers:{
 }
 );
 
-const a=await r.json();
+const results=await r.json();
 
-if(!a.length)
+if(!results.length)
 return null;
+
+// Prefer an actual place/city/town/state match over a random POI
+// (station, terminal, shop, etc.) so a plain city-name search like
+// "Delhi" centres on the city itself, not on whatever ranked first.
+const placeClasses=['place','boundary'];
+
+const placeTypes=[
+'city','town','village','state','county',
+'administrative','municipality','suburb'
+];
+
+const best=
+
+results.find(x=>
+placeClasses.includes(x.class) &&
+placeTypes.includes(x.type)
+)
+||
+results.find(x=>
+placeClasses.includes(x.class)
+)
+||
+results[0];
+
+const a=[best];
 
 return{
 
@@ -836,7 +861,7 @@ pickupCoords||
 {lat:22.9734,lon:78.6569};
 
 const zoom=
-(dropCoords||pickupCoords)?15:5;
+dropCoords?16:(pickupCoords?15:5);
 
 if(!leafletMap){
 
@@ -903,7 +928,7 @@ destMarker.setLatLng([lat,lon]);
 
 }
 
-leafletMap.setView([lat,lon],leafletMap.getZoom()<14?15:leafletMap.getZoom());
+leafletMap.setView([lat,lon],leafletMap.getZoom()<16?16:leafletMap.getZoom());
 
 if(skipAddressLookup)
 return;
