@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ride Cash</title>
+<style>
+#mapPicker{height:280px;border-radius:12px;margin-bottom:10px;display:none}
+#mapPicker.show{display:block}
+.maphint{font-size:12px;color:#666;margin:-4px 0 8px}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f5f5f5;color:#111}
+.app{max-width:520px;margin:auto;padding-bottom:30px}
+.top{background:#111;color:#fff;padding:20px}
+.top h1{margin:0 0 5px}
+.card{background:#fff;margin:14px;padding:16px;border-radius:16px;box-shadow:0 2px 8px #ddd}
+.hidden{display:none!important}
+.role{padding:18px;border:1px solid #ddd;border-radius:14px;margin:12px 0;cursor:pointer;font-size:18px}
+.role small{display:block;font-size:13px;color:#666;margin-top:5px}
+.label{font-weight:bold;margin:12px 0 6px}
+input,select{width:100%;padding:13px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+.btn{width:100%;padding:13px;border:0;border-radius:10px;background:#111;color:#fff;font-size:16px;font-weight:bold;margin-top:12px;cursor:pointer}
+.secondary{background:#eee;color:#111}
+.danger{background:#b42318}
+.ride{display:flex;justify-content:space-between;align-items:center;margin:10px 0;padding:14px;border:1px solid #ddd;border-radius:12px;cursor:pointer}
+.ride.selected{border:2px solid #111}
+.status{padding:13px;border-radius:10px;background:#eee;margin-bottom:12px}
+.locationbox{padding:12px;border:1px solid #ddd;border-radius:12px;background:#fafafa;margin-bottom:12px}
+.locationok{color:#16803c;font-weight:bold}
+.small{font-size:12px;color:#666}
+.row{display:flex;justify-content:space-between;gap:10px}
+.row>*{flex:1}
+.metric{padding:12px;background:#f5f5f5;border-radius:10px;text-align:center}
+.metric b{display:block;font-size:20px}
+.drivercard{padding:13px;border:1px solid #ddd;border-radius:12px;margin:9px 0}
+.online{color:#16803c;font-weight:bold}
+.offline{color:#b42318;font-weight:bold}
+.badge{display:inline-block;padding:4px 8px;border-radius:20px;background:#eee;font-size:12px}
+.back{margin:14px;padding:10px 0;border:0;background:none;font-weight:bold;cursor:pointer}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<div class="top">
+<h1>Ride Cash</h1>
+<div>Ride booking • Cash payment only</div>
+</div>
+
+<section id="welcome">
+<div class="card">
+<h2>Welcome</h2>
+<p>Select your role. No login required to open the app.</p>
+
+<div class="role" onclick="openRole('customer')">
+👤 Rider
+<small>Book Auto or Car</small>
+</div>
+
+<div class="role" onclick="openRole('driver')">
+🚗 Driver
+<small>Accept cash rides</small>
+</div>
+</div>
+</section>
+
+<section id="customer" class="hidden">
+
+<button class="back" onclick="backHome()">← Back</button>
+
+<div class="card">
+<h2>Book a Ride</h2>
+
+<div class="label">Pickup location</div>
+
+<input id="pickup" placeholder="Enter pickup location">
+
+<button class="btn secondary" onclick="useLocation()">
+📍 Use Current Location
+</button>
+
+<div id="gpsHelp" class="small" style="margin:-5px 0 10px">
+Current Location दबाने पर phone GPS permission मांगेगा.
+Downloaded HTML file में browser GPS permission काम नहीं करता;
+app को HTTPS/installed Android app में चलाएँ.
+</div>
+
+<div id="locationStatus" class="locationbox">
+<span class="small">Current location is not selected</span>
+</div>
+
+<div id="gpsDetails" class="locationbox hidden"></div>
+
+<div class="label" style="margin-top:14px">
+Destination
+</div>
+
+<input id="drop" placeholder="Search destination, e.g. Gurgaon">
+
+<div class="row">
+<button class="btn secondary" style="margin-top:0" onclick="searchDestination()">
+🔍 Search
+</button>
+
+<button class="btn secondary" style="margin-top:0" onclick="openDestinationMap()">
+🗺️ Select on Map
+</button>
+</div>
+
+<div id="mapPicker"></div>
+<div id="mapHint" class="maphint hidden">📍 Map par tap/click karke destination pin lagao</div>
+
+<div id="destinationResult" class="locationbox hidden"></div>
+
+<button class="btn" onclick="findRides()">
+Find Ride
+</button>
+
+</div>
+
+<div id="rideChoices" class="card hidden">
+
+<h2>Choose your ride</h2>
+
+<h3>🛺 Auto</h3>
+
+<div class="ride selected" id="auto" onclick="selectRide('Auto')">
+<div>
+<b>Auto</b><br>
+<span class="small">City ride</span>
+</div>
+</div>
+
+<h3>🚗 Car</h3>
+
+<div class="ride" id="mini" onclick="selectRide('Mini')">
+<div>
+<b>Mini</b><br>
+<span class="small">Small car</span>
+</div>
+</div>
+
+<div class="ride" id="sedan" onclick="selectRide('Sedan')">
+<div>
+<b>Sedan</b><br>
+<span class="small">Comfortable sedan</span>
+</div>
+</div>
+
+<div class="ride" id="suv" onclick="selectRide('SUV')">
+<div>
+<b>SUV</b><br>
+<span class="small">More space</span>
+</div>
+</div>
+
+<button class="btn" onclick="bookRide()">
+Book Ride — Cash
+</button>
+
+</div>
+
+<div id="customerRide" class="card hidden">
+
+<div class="status" id="customerStatus">
+<b>Finding nearby driver…</b>
+</div>
+
+<div class="locationbox">
+<b>📍 Pickup</b>
+<div id="pickupDetails" class="small">
+Location details will appear here.
+</div>
+</div>
+
+<div class="locationbox">
+<b>🏁 Destination</b>
+<div id="dropDetails" class="small">
+Destination details will appear here.
+</div>
+</div>
+
+<div class="row">
+
+<div class="metric">
+<b id="driverPickupKm">—</b>
+<span class="small">Driver → Pickup</span>
+</div>
+
+<div class="metric">
+<b id="tripKm">—</b>
+<span class="small">Pickup → Destination</span>
+</div>
+
+</div>
+
+<p>
+<b>Ride:</b>
+<span id="fareRide">Auto</span>
+</p>
+
+<p>
+<b>Payment:</b> Cash only
+</p>
+
+<button class="btn secondary" onclick="shareWhatsAppLocation()">
+📲 Share Current Location on WhatsApp
+</button>
+
+<p class="small">
+Live tracking is not inside this app.
+Pickup location is shared through WhatsApp.
+</p>
+
+<button class="btn danger" onclick="cancelRide()">
+Cancel Ride
+</button>
+
+</div>
+
+</section>
+
+<section id="driver" class="hidden">
+
+<button class="back" onclick="backHome()">← Back</button>
+
+<div class="card">
+
+<h2>Driver</h2>
+
+<div class="label">
+Vehicle category
+</div>
+
+<select id="driverVehicle">
+<option>Auto</option>
+<option>Mini</option>
+<option>Sedan</option>
+<option>SUV</option>
+</select>
+
+<div class="row">
+
+<div class="metric">
+<b id="driverState">OFF</b>
+<span class="small">Status</span>
+</div>
+
+<div class="metric">
+<b id="completed">0</b>
+<span class="small">Rides</span>
+</div>
+
+</div>
+
+<button id="onlineBtn" class="btn" onclick="toggleDriver()">
+Go Online
+</button>
+
+</div>
+
+<div id="driverRequest" class="card hidden">
+
+<div class="status">
+
+<b>New ride request</b>
+<br>
+
+<span id="requestRoute">
+Pickup → Destination
+</span>
+
+</div>
+
+<p>
+<b>Ride:</b>
+<span id="requestVehicle">Auto</span>
+</p>
+
+<p>
+<b>Payment:</b>
+<span class="badge">CASH ONLY</span>
+</p>
+
+<div class="row">
+
+<div class="metric">
+<b id="requestDriverKm">—</b>
+<span class="small">Driver → Pickup</span>
+</div>
+
+<div class="metric">
+<b id="requestTripKm">—</b>
+<span class="small">Pickup → Destination</span>
+</div>
+
+</div>
+
+<div class="row">
+
+<button class="btn" onclick="acceptRequest()">
+Accept
+</button>
+
+<button class="btn danger" onclick="rejectRequest()">
+Reject
+</button>
+
+</div>
+
+</div>
+
+<div id="activeDriverRide" class="card hidden">
+
+<h3>Active Ride</h3>
+
+<p>
+<b>Pickup:</b>
+<span id="activePickup">—</span>
+</p>
+
+<p>
+<b>Destination:</b>
+<span id="activeDrop">—</span>
+</p>
+
+<div class="row">
+
+<div class="metric">
+<b id="activeDriverKm">—</b>
+<span class="small">Driver → Pickup</span>
+</div>
+
+<div class="metric">
+<b id="activeTripKm">—</b>
+<span class="small">Pickup → Destination</span>
+</div>
+
+</div>
+
+<p>
+<b>Payment:</b> Cash only
+</p>
+
+<button class="btn secondary" onclick="shareDriverWhatsApp()">
+📲 Open WhatsApp for Pickup
+</button>
+
+<button class="btn" onclick="completeRide()">
+Complete Ride
+</button>
+
+</div>
+
+</section>
+
+</div>
+
+<script>
+
+let selectedRide='Auto';
+let driverOnline=false;
+let rideActive=false;
+let requestPending=false;
+let accepted=false;
+let totalRides=0;
+
+let pickupCoords=null;
+let dropCoords=null;
+let driverCoords=null;
+
+const drivers=[
+{
+name:'Rahul',
+vehicle:'Auto',
+online:false
+}
+];
+
+const $=id=>document.getElementById(id);
+
+function openRole(role){
+
+$('welcome').classList.add('hidden');
+
+$('customer').classList.toggle(
+'hidden',
+role!=='customer'
+);
+
+$('driver').classList.toggle(
+'hidden',
+role!=='driver'
+);
+
+}
+
+function backHome(){
+
+$('customer').classList.add('hidden');
+
+$('driver').classList.add('hidden');
+
+$('welcome').classList.remove('hidden');
+
+}
+
+async function reverseGeocode(lat,lon){
+
+let nomData=null;
+let a={};
+
+try{
+
+const r=await fetch(
+`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&addressdetails=1&zoom=18`,
+{
+headers:{
+'Accept-Language':'en',
+'Accept':'application/json'
+}
+}
+);
+
+if(r.ok){
+
+nomData=await r.json();
+
+a=nomData.address||{};
+
+}
+
+}catch(e){}
+
+let geo={};
+
+try{
+
+const r=await fetch(
+`https://api-bdc.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`,
+{
+headers:{
+'Accept':'application/json'
+}
+}
+);
+
+if(r.ok)
+geo=await r.json();
+
+}catch(e){
+
+try{
+
+const r=await fetch(
+`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`,
+{
+headers:{
+'Accept':'application/json'
+}
+}
+);
+
+if(r.ok)
+geo=await r.json();
+
+}catch(_){}
+
+}
+
+const clean=v=>String(v||'').trim();
+
+const bdcLocality=clean(geo.locality);
+
+const bdcCity=clean(geo.city);
+
+const bdcState=clean(geo.principalSubdivision);
+
+const bdcPin=clean(
+geo.postcode||geo.postalCode
+).replace(/\D/g,'').slice(0,6);
+
+const city=
+clean(
+a.city||
+a.town||
+a.municipality
+)||bdcCity;
+
+const sameAsCity=v=>{
+
+const x=clean(v).toLowerCase();
+
+const c=city.toLowerCase();
+
+return !x || (c && x===c);
+
+};
+
+const firstDifferent=(...vals)=>
+vals
+.map(clean)
+.find(v=>v && !sameAsCity(v))
+||'';
+
+const sector=firstDifferent(
+
+a.sector,
+
+(
+a.neighbourhood &&
+/\bsector\s*[- ]?\d+/i.test(a.neighbourhood)
+)
+?
+a.neighbourhood
+:''
+);
+
+const area=firstDifferent(
+
+a.locality,
+a.neighbourhood,
+a.suburb,
+a.residential,
+a.quarter,
+a.city_district
+
+);
+
+const mohalla=firstDifferent(
+
+a.mohalla,
+
+(
+a.neighbourhood &&
+!/\bsector\s*[- ]?\d+/i.test(a.neighbourhood)
+)
+?
+a.neighbourhood
+:'',
+
+a.quarter
+
+);
+
+const village=firstDifferent(
+a.village,
+a.hamlet
+);
+
+const state=
+clean(a.state)||bdcState;
+
+const nomPin=
+clean(a.postcode)
+.replace(/\D/g,'')
+.slice(0,6);
+
+let pincode=
+/^[1-9][0-9]{5}$/.test(bdcPin)
+?
+bdcPin
+:
+(
+/^[1-9][0-9]{5}$/.test(nomPin)
+?
+nomPin
+:''
+);
+
+const cityLower=city.toLowerCase();
+
+const areaLower=area.toLowerCase();
+
+if(
+cityLower==='rewari' ||
+(
+cityLower.includes('rewari') &&
+!areaLower.includes('dharuhera')
+)
+){
+
+pincode='123401';
+
+}
+
+const parts=[
+
+clean(a.house_number),
+clean(a.road),
+area
+
+].filter(Boolean);
+
+const text=
+
+parts.join(', ')
+||
+[
+area,
+sector,
+mohalla,
+village,
+city,
+state,
+pincode
+]
+.filter(Boolean)
+.join(', ')
+||
+clean(nomData?.display_name)
+||
+`Lat ${Number(lat).toFixed(5)}, Lon ${Number(lon).toFixed(5)}`;
+
+return{
+
+text,
+area,
+sector,
+mohalla,
+village,
+city,
+state,
+pincode
+
+};
+
+}
+
+async function geocodePlace(q){
+
+try{
+
+const r=await fetch(
+`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=20&addressdetails=1&countrycodes=in&q=${encodeURIComponent(q)}`,
+{
+headers:{
+'Accept-Language':'en',
+'Accept':'application/json'
+}
+}
+);
+
+if(!r.ok)
+return null;
+
+const results=await r.json();
+
+if(!Array.isArray(results)||!results.length)
+return null;
+
+const india=results.filter(x=>
+String(x.address?.country_code||'').toLowerCase()==='in'
+);
+
+if(!india.length)
+return null;
+
+const text=String(q||'').trim().toLowerCase();
+
+const words=text
+.replace(/[^\p{L}\p{N}\s]/gu,' ')
+.split(/\s+/)
+.filter(x=>x.length>1);
+
+const nameOf=x=>
+String(
+x.name||
+x.address?.amenity||
+x.address?.tourism||
+x.address?.historic||
+x.address?.shop||
+''
+).trim().toLowerCase();
+
+const displayOf=x=>
+String(x.display_name||'').toLowerCase();
+
+const cityOf=x=>
+String(
+x.address?.city||
+x.address?.town||
+x.address?.municipality||
+x.address?.village||
+''
+).trim().toLowerCase();
+
+const specificClasses=[
+'tourism','historic','amenity','leisure',
+'shop','railway','public_transport','building'
+];
+
+const specificTypes=[
+'attraction','monument','memorial','museum',
+'place_of_worship','hospital','school','college',
+'university','hotel','station','bus_station',
+'railway','mosque','temple','church','shrine',
+'stadium','market','mall'
+];
+
+function score(x){
+
+let s=0;
+
+const name=nameOf(x);
+const display=displayOf(x);
+const city=cityOf(x);
+
+if(name===text)
+s+=1200;
+
+let nameMatches=0;
+let displayMatches=0;
+
+for(const w of words){
+
+if(name.includes(w))
+nameMatches++;
+
+if(display.includes(w))
+displayMatches++;
+
+}
+
+s+=nameMatches*220;
+s+=displayMatches*30;
+
+if(
+['place','boundary'].includes(x.class)&&
+['city','town','municipality','village','suburb','administrative'].includes(x.type)
+)
+s+=300;
+
+if(city===text)
+s+=550;
+
+if(specificClasses.includes(x.class))
+s+=180;
+
+if(specificTypes.includes(x.type))
+s+=300;
+
+if(
+name &&
+words.length &&
+words.every(w=>name.includes(w))
+)
+s+=500;
+
+if(
+x.class==='boundary' &&
+['country','state'].includes(x.type)
+)
+s-=1200;
+
+if(
+x.class==='railway' &&
+!text.includes('station') &&
+!text.includes('railway') &&
+!text.includes('junction')
+)
+s-=250;
+
+return s;
+
+}
+
+const ranked=[...india].sort(
+(a,b)=>score(b)-score(a)
+);
+
+const best=ranked[0];
+
+if(!best||!best.lat||!best.lon)
+return null;
+
+return{
+lat:+best.lat,
+lon:+best.lon,
+display:best.display_name
+};
+
+}catch(e){
+
+return null;
+
+}
+
+}
+
+async function searchDestination(){
+
+const q=$('drop').value.trim();
+
+if(!q){
+
+alert('Destination ka naam enter karo.');
+
+return;
+
+}
+
+$('destinationResult').classList.remove('hidden');
+
+$('destinationResult').innerHTML=
+'<span class="small">🔍 Destination search ho raha hai…</span>';
+
+const d=await geocodePlace(q);
+
+if(!d){
+
+dropCoords=null;
+
+$('destinationResult').innerHTML=
+'<b>Destination nahi mila</b>';
+
+return;
+
+}
+
+dropCoords=d;
+
+const rd=await reverseGeocode(
+d.lat,
+d.lon
+);
+
+$('drop').value=
+rd.city||q;
+
+const trip=
+pickupCoords
+?
+km(pickupCoords,dropCoords)
+:null;
+
+$('destinationResult').innerHTML=
+
+'<b>🏁 Destination: '+
+(rd.city||q)+
+'</b><br>'+
+'<b>📏 Pickup → Destination: '+
+(
+trip!=null
+?
+trip.toFixed(1)+' km'
+:
+'—'
+)+
+'</b>';
+
+// Open the map centred on the searched destination and drop the pin there,
+// so search and map stay connected to the same location.
+try{
+
+await openDestinationMap(true);
+
+await placeDestPin(dropCoords.lat,dropCoords.lon,false,true);
+
+}catch(e){}
+
+}
+
+let leafletMap=null;
+let destMarker=null;
+let leafletLoading=null;
+
+function loadLeaflet(){
+
+if(window.L)
+return Promise.resolve();
+
+if(leafletLoading)
+return leafletLoading;
+
+leafletLoading=new Promise((resolve,reject)=>{
+
+const css=document.createElement('link');
+
+css.rel='stylesheet';
+
+css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+
+document.head.appendChild(css);
+
+const script=document.createElement('script');
+
+script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+const timer=setTimeout(()=>{
+
+reject(new Error('timeout'));
+
+},8000);
+
+script.onload=()=>{
+
+clearTimeout(timer);
+
+resolve();
+
+};
+
+script.onerror=()=>{
+
+clearTimeout(timer);
+
+reject(new Error('load-failed'));
+
+};
+
+document.body.appendChild(script);
+
+});
+
+return leafletLoading;
+
+}
+
+async function openDestinationMap(forceOpen){
+
+const el=$('mapPicker');
+
+const wasOpen=el.classList.contains('show');
+
+if(wasOpen && !forceOpen){
+
+el.classList.remove('show');
+
+$('mapHint').classList.add('hidden');
+
+return;
+
+}
+
+$('mapHint').classList.remove('hidden');
+
+$('mapHint').textContent='⏳ Map load ho raha hai…';
+
+try{
+
+await loadLeaflet();
+
+}catch(e){
+
+$('mapHint').textContent=
+
+'⚠️ Map load nahi ho paaya (internet check karo). Destination ke liye upar "🔍 Search" use karo.';
+
+return;
+
+}
+
+$('mapHint').textContent='📍 Map par tap/click karke destination pin lagao';
+
+el.classList.add('show');
+
+// centre map: dropCoords (freshly searched) > pickup location > India default
+const centre=
+dropCoords||
+pickupCoords||
+{lat:22.9734,lon:78.6569};
+
+const zoom=
+dropCoords?16:(pickupCoords?15:5);
+
+if(!leafletMap){
+
+leafletMap=L.map('mapPicker').setView(
+[centre.lat,centre.lon],
+zoom
+);
+
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+maxZoom:19,
+attribution:'© OpenStreetMap contributors'
+}
+).addTo(leafletMap);
+
+leafletMap.on('click',async e=>{
+
+await placeDestPin(
+e.latlng.lat,
+e.latlng.lng
+);
+
+});
+
+// fix rendering glitch when a hidden map becomes visible
+setTimeout(()=>leafletMap.invalidateSize(),150);
+
+}else{
+
+leafletMap.setView([centre.lat,centre.lon],zoom);
+
+setTimeout(()=>leafletMap.invalidateSize(),150);
+
+}
+
+if(dropCoords&&!destMarker){
+
+await placeDestPin(dropCoords.lat,dropCoords.lon,true,true);
+
+}
+
+}
+
+async function placeDestPin(lat,lon,skipMove,skipAddressLookup){
+
+dropCoords={lat,lon};
+
+if(!destMarker){
+
+destMarker=L.marker([lat,lon],{draggable:true}).addTo(leafletMap);
+
+destMarker.on('dragend',async ()=>{
+
+const p=destMarker.getLatLng();
+
+await placeDestPin(p.lat,p.lng,true);
+
+});
+
+}else if(!skipMove){
+
+destMarker.setLatLng([lat,lon]);
+
+}
+
+leafletMap.setView([lat,lon],leafletMap.getZoom()<16?16:leafletMap.getZoom());
+
+if(skipAddressLookup)
+return;
+
+$('destinationResult').classList.remove('hidden');
+
+$('destinationResult').innerHTML=
+'<span class="small">🔍 Address dhoondha ja raha hai…</span>';
+
+const d=await reverseGeocode(lat,lon);
+
+$('drop').value=d.text||d.city||'Selected location';
+
+const trip=
+pickupCoords?km(pickupCoords,dropCoords):null;
+
+$('destinationResult').innerHTML=
+
+'<b>🏁 Destination: '+
+(d.text||d.city||'Selected location')+
+'</b><br>'+
+'<b>📏 Pickup → Destination: '+
+(trip!=null?trip.toFixed(1)+' km':'—')+
+'</b>';
+
+}
+
+function km(a,b){
+
+if(!a||!b)
+return null;
+
+const R=6371;
+
+const rad=x=>
+x*Math.PI/180;
+
+const dLat=
+rad(b.lat-a.lat);
+
+const dLon=
+rad(b.lon-a.lon);
+
+const x=
+Math.sin(dLat/2)**2+
+Math.cos(rad(a.lat))*
+Math.cos(rad(b.lat))*
+Math.sin(dLon/2)**2;
+
+return R*2*Math.atan2(
+Math.sqrt(x),
+Math.sqrt(1-x)
+);
+
+}
+
+function setDetails(id,d){
+
+$(id).innerHTML=
+
+`${d.area?
+'<b>Area:</b> '+d.area+'<br>':
+''}`+
+
+`${d.sector?
+'<b>Sector:</b> '+d.sector+'<br>':
+''}`+
+
+`${d.mohalla?
+'<b>Mohalla:</b> '+d.mohalla+'<br>':
+''}`+
+
+`${d.village?
+'<b>Village:</b> '+d.village+'<br>':
+''}`+
+
+`${d.pincode?
+'<b>Pincode:</b> '+d.pincode+'<br>':
+''}`+
+
+`${d.city?
+'<b>City:</b> '+d.city+'<br>':
+''}`+
+
+`${d.state?
+'<b>State:</b> '+d.state:
+''}`;
+
+}
+
+function useLocation(){
+
+const status=$('locationStatus');
+
+const details=$('gpsDetails');
+
+pickupCoords=null;
+
+details.classList.add('hidden');
+
+if(
+!window.isSecureContext ||
+location.protocol==='file:' ||
+location.protocol==='content:'
+){
+
+status.innerHTML=
+'<b>⚠️ GPS permission is not available here</b><br>'+
+'<span class="small">'+
+'Ye downloaded HTML preview hai. Real phone GPS ke liye isi app ko HTTPS website ya installed Android app ke roop mein open karo.'+
+'</span>';
+
+return;
+
+}
+
+if(!navigator.geolocation){
+
+status.innerHTML=
+'<b>⚠️ GPS unavailable</b><br>'+
+'<span class="small">'+
+'This device/browser does not provide location.'+
+'</span>';
+
+return;
+
+}
+
+status.innerHTML=
+'<b>📍 Getting GPS location…</b><br>'+
+'<span class="small">Please allow location permission.</span>';
+
+navigator.geolocation.getCurrentPosition(
+
+async p=>{
+
+pickupCoords={
+lat:p.coords.latitude,
+lon:p.coords.longitude
+};
+
+status.innerHTML=
+'<span class="locationok">✓ Current Location confirmed</span><br>'+
+'<span class="small">GPS accuracy: '+
+(
+p.coords.accuracy
+?
+Math.round(p.coords.accuracy)+' m'
+:
+'available'
+)+
+'</span>';
+
+const d=await reverseGeocode(
+pickupCoords.lat,
+pickupCoords.lon
+);
+
+$('pickup').value=
+d.text||
+'Current Location';
+
+details.innerHTML=
+'<b>📍 Pickup details</b><br>'+
+`${d.area?
+'<b>Area:</b> '+d.area+'<br>':
+''}`+
+`${d.sector?
+'<b>Sector:</b> '+d.sector+'<br>':
+''}`+
+`${d.mohalla?
+'<b>Mohalla:</b> '+d.mohalla+'<br>':
+''}`+
+`${d.village?
+'<b>Village:</b> '+d.village+'<br>':
+''}`+
+`${d.pincode?
+'<b>Pincode:</b> '+d.pincode+'<br>':
+''}`+
+`${d.city?
+'<b>City:</b> '+d.city+'<br>':
+''}`+
+`${d.state?
+'<b>State:</b> '+d.state+'<br>':
+''}`+
+'<span class="small">GPS: '+
+pickupCoords.lat.toFixed(5)+
+', '+
+pickupCoords.lon.toFixed(5)+
+'</span>';
+
+details.classList.remove('hidden');
+
+setDetails(
+'pickupDetails',
+d
+);
+
+},
+
+err=>{
+
+pickupCoords=null;
+
+let msg=
+'Location permission allow karo.';
+
+if(err.code===1)
+msg=
+'Location permission denied. Browser settings se location permission allow karo.';
+
+if(err.code===2)
+msg=
+'GPS location mil nahi rahi. GPS/Location ON karke dobara try karo.';
+
+if(err.code===3)
+msg=
+'GPS location lene mein time lag raha hai. Dobara try karo.';
+
+status.innerHTML=
+'<b>❌ Current Location not confirmed</b><br>'+
+'<span class="small">'+msg+'</span>';
+
+details.classList.add('hidden');
+
+},
+
+{
+enableHighAccuracy:true,
+timeout:20000,
+maximumAge:0
+}
+
+);
+
+}
+
+async function findRides(){
+
+if(
+!$('pickup').value.trim()||
+!$('drop').value.trim()
+){
+
+alert(
+'Pickup and destination enter karo.'
+);
+
+return;
+
+}
+
+if(!pickupCoords){
+
+alert(
+'Pehle Current Location dabao aur GPS location confirm hone do.'
+);
+
+return;
+
+}
+
+if(!dropCoords)
+dropCoords=
+await geocodePlace(
+$('drop').value
+);
+
+if(!dropCoords){
+
+alert(
+'Destination ko Search se select karo.'
+);
+
+return;
+
+}
+
+const d=
+await reverseGeocode(
+dropCoords.lat,
+dropCoords.lon
+);
+
+setDetails(
+'dropDetails',
+d
+);
+
+const trip=
+km(
+pickupCoords,
+dropCoords
+);
+
+$('dropDetails').innerHTML+=
+'<br><b>📏 Pickup → Destination: '+
+trip.toFixed(1)+
+' km</b>';
+
+$('destinationResult')
+.classList.remove('hidden');
+
+$('destinationResult').innerHTML=
+'<b>🏁 Destination: '+
+($('drop').value||d.city)+
+'</b><br>'+
+'<b>📏 Distance: '+
+trip.toFixed(1)+
+' km</b>';
+
+$('rideChoices')
+.classList.remove('hidden');
+
+$('customerRide')
+.classList.add('hidden');
+
+}
+
+function selectRide(type){
+
+selectedRide=type;
+
+document
+.querySelectorAll('.ride')
+.forEach(x=>
+x.classList.remove('selected')
+);
+
+$(type.toLowerCase())
+.classList.add('selected');
+
+}
+
+async function bookRide(){
+
+$('rideChoices')
+.classList.add('hidden');
+
+$('customerRide')
+.classList.remove('hidden');
+
+$('customerStatus').innerHTML=
+'<b>Finding nearby driver…</b>';
+
+rideActive=true;
+
+requestPending=true;
+
+const trip=
+km(
+pickupCoords,
+dropCoords
+);
+
+$('tripKm').textContent=
+trip
+?
+trip.toFixed(1)+' km'
+:
+'—';
+
+$('fareRide').textContent=
+selectedRide;
+
+$('pickupDetails')
+.scrollIntoView({
+behavior:'smooth',
+block:'nearest'
+});
+
+setTimeout(()=>{
+
+$('customerStatus').innerHTML=
+'<b>Driver found</b><br>'+
+'Driver is coming to pickup.';
+
+showDriverRequest();
+
+},900);
+
+}
+
+function showDriverRequest(){
+
+if(!rideActive)
+return;
+
+if(
+drivers[0].online &&
+(
+drivers[0].vehicle===selectedRide ||
+selectedRide==='Auto'
+)
+){
+
+$('driverRequest')
+.classList.remove('hidden');
+
+$('requestRoute').textContent=
+$('pickup').value+
+' → '+
+$('drop').value;
+
+$('requestVehicle').textContent=
+selectedRide;
+
+const dk=
+km(
+driverCoords,
+pickupCoords
+);
+
+const tk=
+km(
+pickupCoords,
+dropCoords
+);
+
+$('requestDriverKm').textContent=
+dk
+?
+dk.toFixed(1)+' km'
+:
+'—';
+
+$('requestTripKm').textContent=
+tk
+?
+tk.toFixed(1)+' km'
+:
+'—';
+
+}
+
+}
+
+function toggleDriver(){
+
+driverOnline=!driverOnline;
+
+$('driverState').textContent=
+driverOnline
+?
+'ON'
+:
+'OFF';
+
+$('driverState').className=
+driverOnline
+?
+'online'
+:
+'offline';
+
+$('onlineBtn').textContent=
+driverOnline
+?
+'Go Offline'
+:
+'Go Online';
+
+drivers[0].online=
+driverOnline;
+
+if(driverOnline){
+
+navigator.geolocation?.getCurrentPosition(
+p=>{
+
+driverCoords={
+lat:p.coords.latitude,
+lon:p.coords.longitude
+};
+
+showDriverRequest();
+
+}
+);
+
+}else{
+
+$('driverRequest')
+.classList.add('hidden');
+
+}
+
+}
+
+function acceptRequest(){
+
+accepted=true;
+
+requestPending=false;
+
+$('driverRequest')
+.classList.add('hidden');
+
+$('activeDriverRide')
+.classList.remove('hidden');
+
+$('customerStatus').innerHTML=
+'<b>Driver accepted</b><br>'+
+'Rahul is on the way to pickup.';
+
+$('activePickup').textContent=
+$('pickup').value;
+
+$('activeDrop').textContent=
+$('drop').value;
+
+const adk=
+km(
+driverCoords,
+pickupCoords
+);
+
+const atk=
+km(
+pickupCoords,
+dropCoords
+);
+
+$('activeDriverKm').textContent=
+adk!=null
+?
+adk.toFixed(1)+' km'
+:
+'—';
+
+$('activeTripKm').textContent=
+atk!=null
+?
+atk.toFixed(1)+' km'
+:
+'—';
+
+}
+
+function rejectRequest(){
+
+requestPending=false;
+
+$('driverRequest')
+.classList.add('hidden');
+
+$('customerStatus').innerHTML=
+'<b>Looking for another driver…</b>';
+
+setTimeout(()=>{
+
+requestPending=true;
+
+showDriverRequest();
+
+},1200);
+
+}
+
+function shareWhatsAppLocation(){
+
+if(!pickupCoords){
+
+alert(
+'Current Location pehle select karo.'
+);
+
+return;
+
+}
+
+const msg=
+`Pickup location: https://www.google.com/maps?q=${pickupCoords.lat},${pickupCoords.lon}
+Pickup: ${$('pickup').value}
+Destination: ${$('drop').value}
+Ride: ${selectedRide}
+Payment: Cash only`;
+
+const number=
+prompt(
+'Driver ka WhatsApp number (+91...) enter karo:'
+);
+
+if(number){
+
+window.open(
+'https://wa.me/'+
+number.replace(/\D/g,'')+
+'?text='+
+encodeURIComponent(msg),
+'_blank'
+);
+
+}
+
+}
+
+function shareDriverWhatsApp(){
+
+shareWhatsAppLocation();
+
+}
+
+function completeRide(){
+
+totalRides++;
+
+rideActive=false;
+
+accepted=false;
+
+$('activeDriverRide')
+.classList.add('hidden');
+
+$('customerRide')
+.classList.add('hidden');
+
+alert(
+'Ride completed. Payment: Cash only.'
+);
+
+}
+
+function cancelRide(){
+
+rideActive=false;
+
+requestPending=false;
+
+accepted=false;
+
+$('customerRide')
+.classList.add('hidden');
+
+$('rideChoices')
+.classList.remove('hidden');
+
+$('driverRequest')
+.classList.add('hidden');
+
+}
+
+</script>
+
+</body>
+</html>
