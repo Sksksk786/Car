@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Ride Cash</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 #mapPicker{height:280px;border-radius:12px;margin-bottom:10px;display:none}
 #mapPicker.show{display:block}
@@ -358,7 +357,6 @@ Complete Ride
 
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 
 let selectedRide='Auto';
@@ -729,6 +727,59 @@ trip.toFixed(1)+' km'
 
 let leafletMap=null;
 let destMarker=null;
+let leafletLoading=null;
+
+function loadLeaflet(){
+
+if(window.L)
+return Promise.resolve();
+
+if(leafletLoading)
+return leafletLoading;
+
+leafletLoading=new Promise((resolve,reject)=>{
+
+const css=document.createElement('link');
+
+css.rel='stylesheet';
+
+css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+
+document.head.appendChild(css);
+
+const script=document.createElement('script');
+
+script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+const timer=setTimeout(()=>{
+
+reject(new Error('timeout'));
+
+},8000);
+
+script.onload=()=>{
+
+clearTimeout(timer);
+
+resolve();
+
+};
+
+script.onerror=()=>{
+
+clearTimeout(timer);
+
+reject(new Error('load-failed'));
+
+};
+
+document.body.appendChild(script);
+
+});
+
+return leafletLoading;
+
+}
 
 async function openDestinationMap(){
 
@@ -746,9 +797,27 @@ return;
 
 }
 
-el.classList.add('show');
-
 $('mapHint').classList.remove('hidden');
+
+$('mapHint').textContent='⏳ Map load ho raha hai…';
+
+try{
+
+await loadLeaflet();
+
+}catch(e){
+
+$('mapHint').textContent=
+
+'⚠️ Map load nahi ho paaya (internet check karo). Destination ke liye upar "🔍 Search" use karo.';
+
+return;
+
+}
+
+$('mapHint').textContent='📍 Map par tap/click karke destination pin lagao';
+
+el.classList.add('show');
 
 // centre map: pickup location > existing dropCoords > India default
 const centre=
@@ -1285,4 +1354,184 @@ driverOnline
 drivers[0].online=
 driverOnline;
 
-if(driver
+if(driverOnline){
+
+navigator.geolocation?.getCurrentPosition(
+p=>{
+
+driverCoords={
+lat:p.coords.latitude,
+lon:p.coords.longitude
+};
+
+showDriverRequest();
+
+}
+);
+
+}else{
+
+$('driverRequest')
+.classList.add('hidden');
+
+}
+
+}
+
+function acceptRequest(){
+
+accepted=true;
+
+requestPending=false;
+
+$('driverRequest')
+.classList.add('hidden');
+
+$('activeDriverRide')
+.classList.remove('hidden');
+
+$('customerStatus').innerHTML=
+'<b>Driver accepted</b><br>'+
+'Rahul is on the way to pickup.';
+
+$('activePickup').textContent=
+$('pickup').value;
+
+$('activeDrop').textContent=
+$('drop').value;
+
+const adk=
+km(
+driverCoords,
+pickupCoords
+);
+
+const atk=
+km(
+pickupCoords,
+dropCoords
+);
+
+$('activeDriverKm').textContent=
+adk!=null
+?
+adk.toFixed(1)+' km'
+:
+'—';
+
+$('activeTripKm').textContent=
+atk!=null
+?
+atk.toFixed(1)+' km'
+:
+'—';
+
+}
+
+function rejectRequest(){
+
+requestPending=false;
+
+$('driverRequest')
+.classList.add('hidden');
+
+$('customerStatus').innerHTML=
+'<b>Looking for another driver…</b>';
+
+setTimeout(()=>{
+
+requestPending=true;
+
+showDriverRequest();
+
+},1200);
+
+}
+
+function shareWhatsAppLocation(){
+
+if(!pickupCoords){
+
+alert(
+'Current Location pehle select karo.'
+);
+
+return;
+
+}
+
+const msg=
+`Pickup location: https://www.google.com/maps?q=${pickupCoords.lat},${pickupCoords.lon}
+Pickup: ${$('pickup').value}
+Destination: ${$('drop').value}
+Ride: ${selectedRide}
+Payment: Cash only`;
+
+const number=
+prompt(
+'Driver ka WhatsApp number (+91...) enter karo:'
+);
+
+if(number){
+
+window.open(
+'https://wa.me/'+
+number.replace(/\D/g,'')+
+'?text='+
+encodeURIComponent(msg),
+'_blank'
+);
+
+}
+
+}
+
+function shareDriverWhatsApp(){
+
+shareWhatsAppLocation();
+
+}
+
+function completeRide(){
+
+totalRides++;
+
+rideActive=false;
+
+accepted=false;
+
+$('activeDriverRide')
+.classList.add('hidden');
+
+$('customerRide')
+.classList.add('hidden');
+
+alert(
+'Ride completed. Payment: Cash only.'
+);
+
+}
+
+function cancelRide(){
+
+rideActive=false;
+
+requestPending=false;
+
+accepted=false;
+
+$('customerRide')
+.classList.add('hidden');
+
+$('rideChoices')
+.classList.remove('hidden');
+
+$('driverRequest')
+.classList.add('hidden');
+
+}
+
+</script>
+
+</body>
+</html>
