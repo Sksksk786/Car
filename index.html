@@ -72,40 +72,62 @@ async function reverseGeocode(lat,lon){
  }
 
  const clean=v=>String(v||'').trim();
- const admin=Array.isArray(geo.localityInfo?.administrative)
-  ?geo.localityInfo.administrative:[];
- const adminNames=admin.map(x=>clean(x?.name)).filter(Boolean);
 
  const bdcLocality=clean(geo.locality);
  const bdcCity=clean(geo.city);
  const bdcState=clean(geo.principalSubdivision);
- const bdcPin=clean(geo.postcode||geo.postalCode)
-  .replace(/\D/g,'').slice(0,6);
+
+ const bdcPin=clean(
+  geo.postcode||geo.postalCode
+ ).replace(/\D/g,'').slice(0,6);
+
+ /*
+  AREA KE ANDAR 4 DETAILS:
+  1. Area / Locality
+  2. Sector
+  3. Mohalla
+  4. Village
+ */
 
  const area=clean(
   a.neighbourhood||
   a.suburb||
-  a.quarter||
   a.residential||
-  a.hamlet||
-  a.village_area||
-  a.city_district||
-  a.district||
-  bdcLocality||
-  adminNames[adminNames.length-1]
+  a.locality||
+  bdcLocality
+ );
+
+ const sector=clean(
+  a.sector||
+  (a.neighbourhood && /sector/i.test(a.neighbourhood)
+   ?a.neighbourhood:'')||
+  (a.suburb && /sector/i.test(a.suburb)
+   ?a.suburb:'')
+ );
+
+ const mohalla=clean(
+  a.mohalla||
+  a.quarter||
+  (a.neighbourhood && !/sector/i.test(a.neighbourhood)
+   ?a.neighbourhood:'')
+ );
+
+ const village=clean(
+  a.village||
+  a.hamlet
  );
 
  const city=clean(
   a.city||
   a.town||
-  a.municipality||
-  a.village
+  a.municipality
  )||bdcCity||bdcLocality;
 
  const state=clean(a.state)||bdcState;
 
  const nomPin=clean(a.postcode)
-  .replace(/\D/g,'').slice(0,6);
+  .replace(/\D/g,'')
+  .slice(0,6);
 
  let pincode=/^[1-9][0-9]{5}$/.test(bdcPin)
   ?bdcPin
@@ -116,8 +138,8 @@ async function reverseGeocode(lat,lon){
  const areaLower=area.toLowerCase();
 
  if(
-  cityLower==='rewari' ||
-  (cityLower.includes('rewari') && !areaLower.includes('dharuhera'))
+  cityLower==='rewari'||
+  (cityLower.includes('rewari')&&!areaLower.includes('dharuhera'))
  ){
   pincode='123401';
  }
@@ -134,9 +156,12 @@ async function reverseGeocode(lat,lon){
   [area,city,state,pincode].filter(Boolean).join(', ')||
   `Lat ${Number(lat).toFixed(5)}, Lon ${Number(lon).toFixed(5)}`;
 
- return {
+ return{
   text,
   area,
+  sector,
+  mohalla,
+  village,
   city,
   state,
   pincode
@@ -154,7 +179,7 @@ async function geocodePlace(q){
 
   if(!a.length)return null;
 
-  return {
+  return{
    lat:+a[0].lat,
    lon:+a[0].lon,
    display:a[0].display_name
@@ -179,16 +204,21 @@ function km(a,b){
   Math.cos(rad(b.lat))*
   Math.sin(dLon/2)**2;
 
- return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))
+ return R*2*Math.atan2(
+  Math.sqrt(x),
+  Math.sqrt(1-x)
+ )
 }
 
 function setDetails(id,d){
  $(id).innerHTML=
   `${d.area?'<b>Area:</b> '+d.area+'<br>':''}`+
+  `${d.sector?'<b>Sector:</b> '+d.sector+'<br>':''}`+
+  `${d.mohalla?'<b>Mohalla:</b> '+d.mohalla+'<br>':''}`+
+  `${d.village?'<b>Village:</b> '+d.village+'<br>':''}`+
   `${d.pincode?'<b>Pincode:</b> '+d.pincode+'<br>':''}`+
   `${d.city?'<b>City:</b> '+d.city+'<br>':''}`+
-  `${d.state?'<b>State:</b> '+d.state:''}`||
-  d.text
+  `${d.state?'<b>State:</b> '+d.state:''}`;
 }
 
 function useLocation(){
@@ -205,14 +235,13 @@ function useLocation(){
  ){
   status.innerHTML=
    '<b>⚠️ GPS permission is not available here</b><br>'+
-   '<span class="small">Ye downloaded HTML preview hai. Real phone GPS ke liye isi app ko HTTPS website ya installed Android app ke roop mein open karo.</span>';
+   '<span class="small">Ye downloaded HTML preview hai. Real phone GPS ke liye app ko HTTPS website ya installed Android app ke roop mein open karo.</span>';
   return
  }
 
  if(!navigator.geolocation){
   status.innerHTML=
-   '<b>⚠️ GPS unavailable</b><br>'+
-   '<span class="small">This device/browser does not provide location.</span>';
+   '<b>⚠️ GPS unavailable</b>';
   return
  }
 
@@ -230,7 +259,9 @@ function useLocation(){
    status.innerHTML=
     '<span class="locationok">✓ Current Location confirmed</span><br>'+
     '<span class="small">GPS accuracy: '+
-    (p.coords.accuracy?Math.round(p.coords.accuracy)+' m':'available')+
+    (p.coords.accuracy
+     ?Math.round(p.coords.accuracy)+' m'
+     :'available')+
     '</span>';
 
    const d=await reverseGeocode(
@@ -243,10 +274,17 @@ function useLocation(){
    details.innerHTML=
     '<b>📍 Pickup details</b><br>'+
     `${d.area?'<b>Area:</b> '+d.area+'<br>':''}`+
+    `${d.sector?'<b>Sector:</b> '+d.sector+'<br>':''}`+
+    `${d.mohalla?'<b>Mohalla:</b> '+d.mohalla+'<br>':''}`+
+    `${d.village?'<b>Village:</b> '+d.village+'<br>':''}`+
     `${d.pincode?'<b>Pincode:</b> '+d.pincode+'<br>':''}`+
     `${d.city?'<b>City:</b> '+d.city+'<br>':''}`+
     `${d.state?'<b>State:</b> '+d.state+'<br>':''}`+
-    `<span class="small">GPS: ${pickupCoords.lat.toFixed(5)}, ${pickupCoords.lon.toFixed(5)}</span>`;
+    `<span class="small">GPS: ${
+      pickupCoords.lat.toFixed(5)
+    }, ${
+      pickupCoords.lon.toFixed(5)
+    }</span>`;
 
    details.classList.remove('hidden');
 
@@ -281,7 +319,10 @@ function useLocation(){
 }
 
 async function findRides(){
- if(!$('pickup').value.trim()||!$('drop').value.trim()){
+ if(
+  !$('pickup').value.trim()||
+  !$('drop').value.trim()
+ ){
   alert('Pickup and destination enter karo.');
   return
  }
@@ -306,7 +347,7 @@ async function findRides(){
  }else{
   $('dropDetails').innerHTML=
    '<b>Destination:</b> '+$('drop').value+
-   '<br><span class="small">Destination ko map se locate nahi kar paaye, isliye KM abhi nahi niklega.</span>';
+   '<br><span class="small">Destination locate nahi ho paaya, isliye KM abhi nahi niklega.</span>';
  }
 }
 
@@ -329,16 +370,15 @@ async function bookRide(){
  rideActive=true;
  requestPending=true;
 
- const trip=km(pickupCoords,dropCoords);
+ const trip=km(
+  pickupCoords,
+  dropCoords
+ );
 
  $('tripKm').textContent=
   trip?trip.toFixed(1)+' km':'—';
 
- $('pickupDetails')
-  .scrollIntoView({
-   behavior:'smooth',
-   block:'nearest'
-  });
+ $('fareRide').textContent=selectedRide;
 
  setTimeout(()=>{
   $('customerStatus').innerHTML=
@@ -363,10 +403,18 @@ function showDriverRequest(){
   $('requestRoute').textContent=
    $('pickup').value+' → '+$('drop').value;
 
-  $('requestVehicle').textContent=selectedRide;
+  $('requestVehicle').textContent=
+   selectedRide;
 
-  const dk=km(driverCoords,pickupCoords);
-  const tk=km(pickupCoords,dropCoords);
+  const dk=km(
+   driverCoords,
+   pickupCoords
+  );
+
+  const tk=km(
+   pickupCoords,
+   dropCoords
+  );
 
   $('requestDriverKm').textContent=
    dk?dk.toFixed(1)+' km':'—';
@@ -424,8 +472,15 @@ function acceptRequest(){
  $('activeDrop').textContent=
   $('drop').value;
 
- const adk=km(driverCoords,pickupCoords);
- const atk=km(pickupCoords,dropCoords);
+ const adk=km(
+  driverCoords,
+  pickupCoords
+ );
+
+ const atk=km(
+  pickupCoords,
+  dropCoords
+ );
 
  $('activeDriverKm').textContent=
   adk!=null?adk.toFixed(1)+' km':'—';
@@ -464,7 +519,9 @@ Ride: ${selectedRide}
 Payment: Cash only`;
 
  const number=
-  prompt('Driver ka WhatsApp number (+91...) enter karo:');
+  prompt(
+   'Driver ka WhatsApp number (+91...) enter karo:'
+  );
 
  if(number)
   window.open(
@@ -513,15 +570,29 @@ function renderAdmin(){
 
  $('adminRide').innerHTML=
   rideActive
-   ?`<b>Active:</b> ${$('pickup').value} → ${$('drop').value}<br>Ride ${selectedRide} • <span class="badge">CASH ONLY</span><br>Status: ${accepted?'Driver accepted':'Finding driver'}`
+   ?`<b>Active:</b> ${
+      $('pickup').value
+     } → ${
+      $('drop').value
+     }<br>Ride ${
+      selectedRide
+     } • <span class="badge">CASH ONLY</span><br>Status: ${
+      accepted
+       ?'Driver accepted'
+       :'Finding driver'
+     }`
    :'No active ride';
 
  $('driverList').innerHTML=
   drivers.map(d=>
    `<div class="drivercard">
     <b>${d.name}</b> • ${d.vehicle}<br>
-    <span class="${d.online?'online':'offline'}">
-     ● ${d.online?'Online':'Offline'}
+    <span class="${
+     d.online?'online':'offline'
+    }">
+     ● ${
+      d.online?'Online':'Offline'
+     }
     </span>
    </div>`
   ).join('')
