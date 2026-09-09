@@ -723,6 +723,16 @@ trip.toFixed(1)+' km'
 )+
 '</b>';
 
+// Open the map centred on the searched destination and drop the pin there,
+// so search and map stay connected to the same location.
+try{
+
+await openDestinationMap(true);
+
+await placeDestPin(dropCoords.lat,dropCoords.lon,false,true);
+
+}catch(e){}
+
 }
 
 let leafletMap=null;
@@ -781,13 +791,13 @@ return leafletLoading;
 
 }
 
-async function openDestinationMap(){
+async function openDestinationMap(forceOpen){
 
 const el=$('mapPicker');
 
 const wasOpen=el.classList.contains('show');
 
-if(wasOpen){
+if(wasOpen && !forceOpen){
 
 el.classList.remove('show');
 
@@ -819,14 +829,14 @@ $('mapHint').textContent='📍 Map par tap/click karke destination pin lagao';
 
 el.classList.add('show');
 
-// centre map: pickup location > existing dropCoords > India default
+// centre map: dropCoords (freshly searched) > pickup location > India default
 const centre=
-pickupCoords||
 dropCoords||
+pickupCoords||
 {lat:22.9734,lon:78.6569};
 
 const zoom=
-(pickupCoords||dropCoords)?13:5;
+(dropCoords||pickupCoords)?15:5;
 
 if(!leafletMap){
 
@@ -865,13 +875,13 @@ setTimeout(()=>leafletMap.invalidateSize(),150);
 
 if(dropCoords&&!destMarker){
 
-await placeDestPin(dropCoords.lat,dropCoords.lon,true);
+await placeDestPin(dropCoords.lat,dropCoords.lon,true,true);
 
 }
 
 }
 
-async function placeDestPin(lat,lon,skipMove){
+async function placeDestPin(lat,lon,skipMove,skipAddressLookup){
 
 dropCoords={lat,lon};
 
@@ -892,6 +902,11 @@ await placeDestPin(p.lat,p.lng,true);
 destMarker.setLatLng([lat,lon]);
 
 }
+
+leafletMap.setView([lat,lon],leafletMap.getZoom()<14?15:leafletMap.getZoom());
+
+if(skipAddressLookup)
+return;
 
 $('destinationResult').classList.remove('hidden');
 
