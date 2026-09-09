@@ -633,7 +633,7 @@ async function geocodePlace(q){
 try{
 
 const r=await fetch(
-`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(q)}`,
+`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=1&q=${encodeURIComponent(q)}`,
 {
 headers:{
 'Accept':'application/json'
@@ -648,13 +648,21 @@ return null;
 
 // Prefer an actual place/city/town/state match over a random POI
 // (station, terminal, shop, etc.) so a plain city-name search like
-// "Delhi" centres on the city itself, not on whatever ranked first.
+// "New Delhi" centres on the city itself, not on a single point like
+// a railway station that may sit in the middle of the tracks with no
+// real road access.
 const placeClasses=['place','boundary'];
 
 const placeTypes=[
 'city','town','village','state','county',
 'administrative','municipality','suburb'
 ];
+
+// Classes that represent a single infrastructure point rather than a
+// usable, road-accessible destination. Avoid these as a last-resort
+// fallback unless nothing else at all is returned — this is what was
+// sending the "New Delhi" search onto the railway tracks.
+const avoidClasses=['railway'];
 
 const best=
 
@@ -665,6 +673,10 @@ placeTypes.includes(x.type)
 ||
 results.find(x=>
 placeClasses.includes(x.class)
+)
+||
+results.find(x=>
+!avoidClasses.includes(x.class)
 )
 ||
 results[0];
