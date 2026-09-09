@@ -203,7 +203,14 @@ async function reverseGeocode(lat,lon){
 
   const sector=firstDifferent(a.sector,
     (a.neighbourhood && /\bsector\s*[- ]?\d+/i.test(a.neighbourhood) ? a.neighbourhood : ''));
-  const area=firstDifferent(a.locality,a.neighbourhood,a.suburb,a.residential,a.quarter,a.city_district);
+  let area=firstDifferent(a.locality,a.neighbourhood,a.suburb,a.residential,a.quarter,a.city_district,
+    a.borough,a.county,a.industrial,a.commercial,a.hamlet,a.isolated_dwelling,a.croft);
+  // Fallback 1: BigDataCloud sometimes has a locality name OSM doesn't
+  if(!area) area=firstDifferent(bdcLocality);
+  // Fallback 2: if truly nothing distinct from the city, allow the road name as the "area" line
+  if(!area) area=firstDifferent(a.road);
+  // Fallback 3: last resort — city_district/suburb even if it matches the city name, better than blank
+  if(!area) area=clean(a.city_district||a.suburb||a.neighbourhood);
   const mohalla=firstDifferent(a.mohalla,
     (a.neighbourhood && !/\bsector\s*[- ]?\d+/i.test(a.neighbourhood) ? a.neighbourhood : ''), a.quarter);
   const village=firstDifferent(a.village,a.hamlet);
