@@ -646,11 +646,27 @@ const results=await r.json();
 if(!results.length)
 return null;
 
-// Prefer an actual place/city/town/state match over a random POI
-// (station, terminal, shop, etc.) so a plain city-name search like
-// "New Delhi" centres on the city itself, not on a single point like
-// a railway station that may sit in the middle of the tracks with no
-// real road access.
+// A country/state-level boundary is never a usable ride destination pin -
+// picking one is what was sending searches like "Agra Taj Mahal" out to
+// the outline of all of India. Drop these from consideration entirely
+// unless Nominatim genuinely returned nothing else.
+const tooBroad=x=>
+x.class==='boundary' &&
+['country','state'].includes(x.type);
+
+const usable=results.filter(x=>!tooBroad(x));
+
+const pool=usable.length?usable:results;
+
+// Named landmarks - temples, mosques, monuments, railway/bus stations,
+// hotels and similar specific places - so "Taj Mahal", "Jama Masjid",
+// "Rewari bus stand" etc. target the exact spot, not a generic area.
+const landmarkClasses=[
+'tourism','historic','amenity','railway','shop','leisure'
+];
+
+// A plain place/city/town/state name search (e.g. "Howrah", "Rewari")
+// should still centre on the place itself, not a random POI inside it.
 const placeClasses=['place','boundary'];
 
 const placeTypes=[
@@ -660,26 +676,38 @@ const placeTypes=[
 
 // Classes that represent a single infrastructure point rather than a
 // usable, road-accessible destination. Avoid these as a last-resort
-// fallback unless nothing else at all is returned — this is what was
-// sending the "New Delhi" search onto the railway tracks.
+// fallback unless nothing else at all is returned.
 const avoidClasses=['railway'];
+
+// Nominatim already ranks pool[0] as the most relevant/important match
+// for the query. If that top match is itself a named landmark, trust it -
+// the person searched for a specific place, not a generic area.
+const topIsLandmark=
+pool[0] &&
+landmarkClasses.includes(pool[0].class);
+
+const cityMatch=pool.find(x=>
+placeClasses.includes(x.class) &&
+placeTypes.includes(x.type)
+);
+
+const landmarkMatch=pool.find(x=>
+landmarkClasses.includes(x.class)
+);
 
 const best=
 
-results.find(x=>
-placeClasses.includes(x.class) &&
-placeTypes.includes(x.type)
-)
+(topIsLandmark?pool[0]:null)
 ||
-results.find(x=>
-placeClasses.includes(x.class)
-)
+cityMatch
 ||
-results.find(x=>
+landmarkMatch
+||
+pool.find(x=>
 !avoidClasses.includes(x.class)
 )
 ||
-results[0];
+pool[0];
 
 const a=[best];
 
