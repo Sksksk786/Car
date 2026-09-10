@@ -96,7 +96,7 @@ app को HTTPS/installed Android app में चलाएँ.
 Destination
 </div>
 
-<input id="drop" placeholder="Search destination, e.g. Gurgaon">
+<input id="drop" placeholder="Search destination, e.g. Gurgaon" oninput="onDropTextChanged()">
 
 <div class="row">
 <button class="btn secondary" style="margin-top:0" onclick="searchDestination()">
@@ -632,14 +632,14 @@ pincode
 
 }
 
-async function geocodePlaceNominatim(q,attempt){
+async function geocodePlaceNominatim(q,attempt,suffixTried){
 
 attempt=attempt||1;
 
 try{
 
 const r=await fetch(
-`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=1&countrycodes=in&q=${encodeURIComponent(q)}`,
+`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=1&q=${encodeURIComponent(q)}`,
 {
 headers:{
 'Accept':'application/json'
@@ -656,7 +656,7 @@ if(attempt<2){
 
 await new Promise(res=>setTimeout(res,900));
 
-return geocodePlaceNominatim(q,attempt+1);
+return geocodePlaceNominatim(q,attempt+1,suffixTried);
 
 }
 
@@ -664,7 +664,16 @@ return{networkError:true};
 
 }
 
-const results=await r.json();
+let results=await r.json();
+
+// Small villages/localities are sometimes only matchable when the
+// query is disambiguated with the country name - try once more with
+// ", India" appended before giving up.
+if(!results.length && !suffixTried && !/india/i.test(q)){
+
+return geocodePlaceNominatim(q+', India',1,true);
+
+}
 
 if(!results.length){
 
@@ -672,7 +681,7 @@ if(attempt<2){
 
 await new Promise(res=>setTimeout(res,900));
 
-return geocodePlaceNominatim(q,attempt+1);
+return geocodePlaceNominatim(q,attempt+1,suffixTried);
 
 }
 
@@ -690,7 +699,18 @@ x.class==='boundary' &&
 
 const usable=results.filter(x=>!tooBroad(x));
 
-const pool=usable.length?usable:results;
+let pool=usable.length?usable:results;
+
+// Prefer results actually tagged as being in India, without throwing
+// away everything else - some genuine India places are mistagged in
+// OSM, and losing them entirely was causing real places to "not be
+// found" even though Nominatim did return them.
+const indiaResults=pool.filter(x=>
+x.address && x.address.country_code==='in'
+);
+
+if(indiaResults.length)
+pool=indiaResults;
 
 // Named landmarks - temples, mosques, monuments, railway/bus stations,
 // hotels and similar specific places - so "Taj Mahal", "Jama Masjid",
@@ -759,7 +779,7 @@ if(attempt<2){
 
 await new Promise(res=>setTimeout(res,900));
 
-return geocodePlaceNominatim(q,attempt+1);
+return geocodePlaceNominatim(q,attempt+1,suffixTried);
 
 }
 
@@ -896,7 +916,7 @@ return;
 }
 
 const mapsUrl=
-`https://www.google.com/maps/@${pickupCoords.lat},${pickupCoords.lon},14z`;
+`https://www.google.com/maps/search/?api=1&query=${pickupCoords.lat},${pickupCoords.lon}`;
 
 window.open(mapsUrl,'_blank');
 
@@ -1001,6 +1021,26 @@ await openDestinationMap(true);
 await placeDestPin(coords.lat,coords.lon);
 
 }catch(e){}
+
+}
+
+// If the person edits the destination text without pressing Search
+// again, the old resolved coordinates must not linger - otherwise
+// "Select on Map" (and trip-distance calculations) keep centering on
+// the previous destination instead of the place they just typed.
+function onDropTextChanged(){
+
+dropCoords=null;
+
+$('destinationResult').classList.add('hidden');
+
+if(destMarker && leafletMap){
+
+leafletMap.removeLayer(destMarker);
+
+destMarker=null;
+
+}
 
 }
 
@@ -1200,14 +1240,57 @@ $('mapHint').textContent='📍 Map par tap/click karke destination pin lagao';
 
 el.classList.add('show');
 
-// centre map: dropCoords (freshly searched) > pickup location > India default
-const centre=
-dropCoords||
-pickupCoords||
-{lat:22.9734,lon:78.6569};
+// centre map: dropCoords (freshly searched) > pickup location >
+// a quick live GPS fix > India centre (last resort only).
+let centre=dropCoords||pickupCoords;
+
+let usedIndiaFallback=false;
+
+if(!centre){
+
+centre=await new Promise(resolve=>{
+
+if(!navigator.geolocation){
+
+resolve(null);
+
+return;
+
+}
+
+navigator.geolocation.getCurrentPosition(
+
+p=>resolve({
+lat:p.coords.latitude,
+lon:p.coords.longitude
+}),
+
+()=>resolve(null),
+
+{
+enableHighAccuracy:false,
+timeout:4000,
+maximumAge:60000
+}
+
+);
+
+});
+
+if(!centre){
+
+centre={lat:22.9734,lon:78.6569};
+
+usedIndiaFallback=true;
+
+}
+
+}
 
 const zoom=
-dropCoords?16:(pickupCoords?15:5);
+usedIndiaFallback?5:(
+(dropCoords||pickupCoords)?16:14
+);
 
 if(!leafletMap){
 
