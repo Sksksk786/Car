@@ -120,8 +120,17 @@ Destination
 </button>
 </div>
 
+<div id="mapPickerOuter" style="position:relative">
 <div id="mapPicker"></div>
-<div id="mapHint" class="maphint hidden">📍 Map par tap/click karke destination pin lagao</div>
+<div id="centerPin" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:34px;pointer-events:none;z-index:500;display:none;text-shadow:0 2px 3px rgba(0,0,0,.35)">📍</div>
+</div>
+<div id="mapHint" class="maphint hidden">📍 Map ko drag karo, pin hamesha center mein fixed rahega</div>
+
+<div id="mapLiveAddress" class="locationbox hidden" style="margin-top:8px"></div>
+
+<button id="confirmMapBtn" class="btn hidden" onclick="confirmMapCenterLocation()">
+✅ Confirm Location
+</button>
 
 <div id="destinationResult" class="locationbox hidden"></div>
 
@@ -697,13 +706,17 @@ return null;
 
 }
 
-// A country/state-level boundary is never a usable ride destination pin -
+// A country-level boundary is never a usable ride destination pin -
 // picking one is what was sending searches like "Agra Taj Mahal" out to
 // the outline of all of India. Drop these from consideration entirely
-// unless Nominatim genuinely returned nothing else.
+// unless Nominatim genuinely returned nothing else. Note: state/UT
+// boundaries are NOT excluded here - "New Delhi", "Goa" etc. are
+// state/UT-sized places themselves, and excluding that level was
+// causing those searches to skip the sensible match and fall through
+// to a random narrow road/park path instead.
 const tooBroad=x=>
 x.class==='boundary' &&
-['country','state'].includes(x.type);
+x.type==='country';
 
 const usable=results.filter(x=>!tooBroad(x));
 
@@ -905,6 +918,38 @@ return null;
 
 }
 
+// Google's short links (maps.app.goo.gl) block direct cross-origin
+// redirect reading from the browser (CORS) - a plain fetch() can never
+// see the resolved long URL from here. Route through a public CORS
+// proxy instead, which fetches server-side and hands back the final
+// page's content, so the coordinates can still be pulled out of it.
+async function resolveShortLink(link){
+
+try{
+
+const proxyUrl=
+'https://api.allorigins.win/raw?url='+
+encodeURIComponent(link);
+
+const r=await fetch(proxyUrl);
+
+if(r.ok){
+
+const text=await r.text();
+
+const coords=extractLatLonFromGoogleLink(text);
+
+if(coords)
+return coords;
+
+}
+
+}catch(e){}
+
+return null;
+
+}
+
 // Opens Google Maps in a new tab so the person can search/select the
 // exact spot themselves (better search than our free OSM source).
 // Once they come back to this tab, this asks them to paste the
@@ -956,6 +1001,8 @@ let coords=extractLatLonFromGoogleLink(raw);
 
 if(!coords && /goo\.gl/i.test(raw)){
 
+// Try 1: plain fetch redirect (works for some short link types,
+// blocked by CORS for most maps.app.goo.gl links).
 try{
 
 const r=await fetch(raw,{redirect:'follow'});
@@ -968,14 +1015,27 @@ coords=extractLatLonFromGoogleLink(r.url);
 
 }catch(e){}
 
+// Try 2: resolve through a CORS proxy, since Google blocks the
+// direct redirect read almost every time for app-shared links.
+if(!coords){
+
+$('googleLinkInput').placeholder='Link resolve ho raha hai…';
+
+coords=await resolveShortLink(raw);
+
+}
+
 }
 
 if(!coords){
 
 alert(
-'Is link se location nahi mil paya.\n\n'+
-'Google Maps mein pin par tap karke jo chhota link milta hai wo kabhi-kabhi expand nahi hota.\n\n'+
-'Fix: us link ko Chrome mein ek baar khol do, address bar se pura (lamba) link copy karo jisme "@lat,lon" ho, phir wahi yahan paste karo.'
+'Is short link se location nahi mil paya (Google isko directly block karta hai).\n\n'+
+'Sabse reliable tarika: Google Maps app ke "Share" button ke bajay -\n'+
+'1) Us jagah ko Chrome browser (google.com/maps) mein search karo\n'+
+'2) Address bar se pura link copy karo (jisme "@lat,lon" dikhega)\n'+
+'3) Wahi yahan paste karo\n\n'+
+'Ya seedha "🗺️ Select on Map" se tap karke pin lagao - wo hamesha kaam karta hai.'
 );
 
 return;
@@ -1003,14 +1063,6 @@ function onDropTextChanged(){
 dropCoords=null;
 
 $('destinationResult').classList.add('hidden');
-
-if(destMarker && leafletMap){
-
-leafletMap.removeLayer(destMarker);
-
-destMarker=null;
-
-}
 
 }
 
@@ -1110,14 +1162,13 @@ try{
 
 await openDestinationMap(true);
 
-await placeDestPin(dropCoords.lat,dropCoords.lon,false,true);
+await placeDestPin(dropCoords.lat,dropCoords.lon,true);
 
 }catch(e){}
 
 }
 
 let leafletMap=null;
-let destMarker=null;
 let leafletLoading=null;
 
 function loadLeaflet(){
@@ -1184,6 +1235,12 @@ el.classList.remove('show');
 
 $('mapHint').classList.add('hidden');
 
+$('centerPin').style.display='none';
+
+$('confirmMapBtn').classList.add('hidden');
+
+$('mapLiveAddress').classList.add('hidden');
+
 return;
 
 }
@@ -1206,9 +1263,13 @@ return;
 
 }
 
-$('mapHint').textContent='📍 Map par tap/click karke destination pin lagao';
+$('mapHint').textContent='📍 Map ko drag karo, pin hamesha center mein fixed rahega';
 
 el.classList.add('show');
+
+$('centerPin').style.display='block';
+
+$('confirmMapBtn').classList.remove('hidden');
 
 // centre map: dropCoords (freshly searched) > pickup location >
 // a quick live GPS fix > India centre (last resort only).
@@ -1277,14 +1338,14 @@ attribution:'© OpenStreetMap contributors'
 }
 ).addTo(leafletMap);
 
-leafletMap.on('click',async e=>{
+// Ola/Uber-style UX: the pin stays fixed at the screen centre: the
+// person drags the MAP underneath it instead of dragging a marker.
+// While dragging, show a lightweight "updating…" note; once the
+// drag settles, reverse-geocode the new centre as a live preview.
+// Nothing is confirmed as the destination until "Confirm Location".
+leafletMap.on('movestart',onDestinationMapMoveStart);
 
-await placeDestPin(
-e.latlng.lat,
-e.latlng.lng
-);
-
-});
+leafletMap.on('moveend',onDestinationMapMoveEnd);
 
 // fix rendering glitch when a hidden map becomes visible
 setTimeout(()=>leafletMap.invalidateSize(),150);
@@ -1297,42 +1358,78 @@ setTimeout(()=>leafletMap.invalidateSize(),150);
 
 }
 
-if(dropCoords&&!destMarker){
-
-await placeDestPin(dropCoords.lat,dropCoords.lon,true,true);
-
-}
+// Show a live preview of whatever is currently under the centre pin.
+onDestinationMapMoveEnd();
 
 }
 
-async function placeDestPin(lat,lon,skipMove,skipAddressLookup){
+function onDestinationMapMoveStart(){
+
+$('mapLiveAddress').classList.remove('hidden');
+
+$('mapLiveAddress').innerHTML=
+'<span class="small">📍 Location update ho raha hai…</span>';
+
+}
+
+let mapLiveAddressToken=0;
+
+async function onDestinationMapMoveEnd(){
+
+if(!leafletMap)
+return;
+
+const myToken=++mapLiveAddressToken;
+
+const c=leafletMap.getCenter();
+
+const d=await reverseGeocode(c.lat,c.lng);
+
+// If the map moved again while this lookup was in flight, drop this
+// stale result instead of overwriting a newer one.
+if(myToken!==mapLiveAddressToken)
+return;
+
+$('mapLiveAddress').classList.remove('hidden');
+
+$('mapLiveAddress').innerHTML=
+'<b>📍 '+
+(d.text||d.city||'Selected location')+
+'</b><br>'+
+'<span class="small">Confirm karne ke liye neeche button dabao</span>';
+
+}
+
+async function confirmMapCenterLocation(){
+
+if(!leafletMap)
+return;
+
+const c=leafletMap.getCenter();
+
+await placeDestPin(c.lat,c.lng);
+
+}
+
+async function placeDestPin(lat,lon,skipAddressLookup){
 
 dropCoords={lat,lon};
 
-if(!destMarker){
+if(leafletMap){
 
-destMarker=L.marker([lat,lon],{draggable:true}).addTo(leafletMap);
-
-destMarker.on('dragend',async ()=>{
-
-const p=destMarker.getLatLng();
-
-await placeDestPin(p.lat,p.lng,true);
-
-});
-
-}else if(!skipMove){
-
-destMarker.setLatLng([lat,lon]);
+leafletMap.setView(
+[lat,lon],
+leafletMap.getZoom()<16?16:leafletMap.getZoom()
+);
 
 }
-
-leafletMap.setView([lat,lon],leafletMap.getZoom()<16?16:leafletMap.getZoom());
 
 if(skipAddressLookup)
 return;
 
 const d=await reverseGeocode(lat,lon);
+
+$('mapLiveAddress').classList.add('hidden');
 
 $('destinationResult').classList.remove('hidden');
 
