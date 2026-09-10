@@ -102,18 +102,6 @@ Destination
 🔍 Search
 </button>
 
-<button id="googleMapsBtn" class="btn secondary" onclick="openGoogleMapsAndConfirm()">
-🗺️ Google Maps se Select Karo
-</button>
-
-<div id="googleLinkBox" class="locationbox hidden" style="margin-top:10px">
-<b>📎 Google Maps se link paste karo:</b>
-<input id="googleLinkInput" placeholder="Yahan link paste karo" style="margin-top:8px">
-<button class="btn" style="margin-top:8px" onclick="confirmGoogleMapsLink()">
-✅ Ye Location Set Karo
-</button>
-</div>
-
 <div id="mapPickerOuter" style="position:relative">
 <div id="mapPicker"></div>
 <div id="centerPin" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:34px;pointer-events:none;z-index:500;display:none;text-shadow:0 2px 3px rgba(0,0,0,.35)">📍</div>
@@ -127,6 +115,18 @@ Destination
 </button>
 
 <div id="destinationResult" class="locationbox hidden"></div>
+
+<button id="googleMapsBtn" class="btn secondary" onclick="openGoogleMapsAndConfirm()">
+🗺️ Google Maps se Select Karo
+</button>
+
+<div id="googleLinkBox" class="locationbox hidden" style="margin-top:10px">
+<b>📎 Google Maps se link paste karo:</b>
+<input id="googleLinkInput" placeholder="Yahan link paste karo" style="margin-top:8px">
+<button class="btn" style="margin-top:8px" onclick="confirmGoogleMapsLink()">
+✅ Ye Location Set Karo
+</button>
+</div>
 
 <button class="btn" onclick="findRides()">
 Find Ride
