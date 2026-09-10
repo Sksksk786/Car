@@ -98,17 +98,11 @@ Destination
 
 <input id="drop" placeholder="Search destination, e.g. Gurgaon" oninput="onDropTextChanged()">
 
-<div class="row">
-<button class="btn secondary" style="margin-top:0" onclick="searchDestination()">
+<button class="btn secondary" onclick="searchDestination()">
 🔍 Search
 </button>
 
-<button class="btn secondary" style="margin-top:0" onclick="openDestinationMap()">
-🗺️ Select on Map
-</button>
-</div>
-
-<button class="btn secondary" onclick="openGoogleMapsAndConfirm()">
+<button id="googleMapsBtn" class="btn secondary" onclick="openGoogleMapsAndConfirm()">
 🗺️ Google Maps se Select Karo
 </button>
 
@@ -409,6 +403,15 @@ $('customer').classList.toggle(
 'hidden',
 role!=='customer'
 );
+
+if(role==='customer'){
+
+// Map now shows automatically instead of behind a "Select on Map"
+// button - Search already re-centres it, so a separate toggle was
+// redundant and confusing.
+openDestinationMap(true);
+
+}
 
 $('driver').classList.toggle(
 'hidden',
@@ -1226,24 +1229,6 @@ return leafletLoading;
 async function openDestinationMap(forceOpen){
 
 const el=$('mapPicker');
-
-const wasOpen=el.classList.contains('show');
-
-if(wasOpen && !forceOpen){
-
-el.classList.remove('show');
-
-$('mapHint').classList.add('hidden');
-
-$('centerPin').style.display='none';
-
-$('confirmMapBtn').classList.add('hidden');
-
-$('mapLiveAddress').classList.add('hidden');
-
-return;
-
-}
 
 $('mapHint').classList.remove('hidden');
 
