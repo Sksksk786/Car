@@ -112,6 +112,14 @@ Destination
 🗺️ Google Maps se Select Karo
 </button>
 
+<div id="googleLinkBox" class="locationbox hidden" style="margin-top:10px">
+<b>📎 Google Maps se link paste karo:</b>
+<input id="googleLinkInput" placeholder="Yahan link paste karo" style="margin-top:8px">
+<button class="btn" style="margin-top:8px" onclick="confirmGoogleMapsLink()">
+✅ Ye Location Set Karo
+</button>
+</div>
+
 <div id="mapPicker"></div>
 <div id="mapHint" class="maphint hidden">📍 Map par tap/click karke destination pin lagao</div>
 
@@ -920,26 +928,39 @@ const mapsUrl=
 
 window.open(mapsUrl,'_blank');
 
-const raw=prompt(
-'Google Maps khul gaya hai (dusre tab mein).\n\n'+
-'Wahan destination search karo, pin par tap karo, phir "Share" dabakar link copy karo.\n\n'+
-'Wapas yahan aakar wo link paste karke OK dabao:'
-);
+// Show a persistent, always-on-screen paste box instead of a
+// prompt() popup - popups often don't survive switching tabs/apps
+// on mobile browsers, which is why the link had nowhere obvious to
+// go before.
+$('googleLinkBox').classList.remove('hidden');
 
-if(!raw)
+$('googleLinkInput').value='';
+
+$('googleLinkInput').focus();
+
+}
+
+async function confirmGoogleMapsLink(){
+
+const raw=$('googleLinkInput').value.trim();
+
+if(!raw){
+
+alert('Pehle Google Maps se copy kiya hua link yahan paste karo.');
+
 return;
 
-const link=raw.trim();
+}
 
-let coords=extractLatLonFromGoogleLink(link);
+let coords=extractLatLonFromGoogleLink(raw);
 
-if(!coords && /goo\.gl/i.test(link)){
+if(!coords && /goo\.gl/i.test(raw)){
 
 try{
 
-const r=await fetch(link,{redirect:'follow'});
+const r=await fetch(raw,{redirect:'follow'});
 
-if(r && r.url && r.url!==link){
+if(r && r.url && r.url!==raw){
 
 coords=extractLatLonFromGoogleLink(r.url);
 
@@ -961,58 +982,7 @@ return;
 
 }
 
-try{
-
-await openDestinationMap(true);
-
-await placeDestPin(coords.lat,coords.lon);
-
-}catch(e){}
-
-}
-
-async function pasteGoogleMapsLink(){
-
-const raw=prompt(
-'Google Maps ka link paste karo (ya sirf "lat,lon" likh do):'
-);
-
-if(!raw)
-return;
-
-const link=raw.trim();
-
-let coords=extractLatLonFromGoogleLink(link);
-
-// Short links (maps.app.goo.gl, goo.gl/maps) don't contain coordinates
-// directly - try to follow the redirect to the real, long link.
-if(!coords && /goo\.gl/i.test(link)){
-
-try{
-
-const r=await fetch(link,{redirect:'follow'});
-
-if(r && r.url && r.url!==link){
-
-coords=extractLatLonFromGoogleLink(r.url);
-
-}
-
-}catch(e){}
-
-}
-
-if(!coords){
-
-alert(
-'Is link se location nahi mil paya.\n\n'+
-'Google Maps app mein pin par tap karke jo link milta hai (chhota link) kabhi-kabhi yahan expand nahi hota.\n\n'+
-'Fix: link ko phone ke browser (Chrome) mein ek baar khol do, address bar se pura (lamba) link copy karo jisme "@lat,lon" ho, phir wahi yahan paste karo.'
-);
-
-return;
-
-}
+$('googleLinkBox').classList.add('hidden');
 
 try{
 
