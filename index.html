@@ -767,12 +767,6 @@ d.lon
 $('drop').value=
 rd.city||q;
 
-const trip=
-pickupCoords
-?
-km(pickupCoords,dropCoords)
-:null;
-
 $('destinationResult').innerHTML=
 
 '<b>🏁 Destination: '+
@@ -800,14 +794,24 @@ $('destinationResult').innerHTML=
 '<b>State:</b> '+rd.state+'<br>':
 '')+
 '<b>📏 Pickup → Destination: '+
-(
-trip!=null
-?
-trip.toFixed(1)+' km'
-:
-'—'
-)+
+(pickupCoords?'calculating…':'—')+
 '</b>';
+
+const trip=
+pickupCoords
+?
+await roadKm(pickupCoords,dropCoords)
+:null;
+
+if(pickupCoords){
+
+$('destinationResult').innerHTML=
+$('destinationResult').innerHTML.replace(
+'calculating…',
+trip!=null?trip.toFixed(1)+' km (road)':'—'
+);
+
+}
 
 // Open the map centred on the searched destination and drop the pin there,
 // so search and map stay connected to the same location.
@@ -994,17 +998,11 @@ leafletMap.setView([lat,lon],leafletMap.getZoom()<16?16:leafletMap.getZoom());
 if(skipAddressLookup)
 return;
 
-$('destinationResult').classList.remove('hidden');
-
-$('destinationResult').innerHTML=
-'<span class="small">🔍 Address dhoondha ja raha hai…</span>';
-
 const d=await reverseGeocode(lat,lon);
 
-$('drop').value=d.text||d.city||'Selected location';
+$('destinationResult').classList.remove('hidden');
 
-const trip=
-pickupCoords?km(pickupCoords,dropCoords):null;
+$('drop').value=d.text||d.city||'Selected location';
 
 $('destinationResult').innerHTML=
 
@@ -1012,8 +1010,21 @@ $('destinationResult').innerHTML=
 (d.text||d.city||'Selected location')+
 '</b><br>'+
 '<b>📏 Pickup → Destination: '+
-(trip!=null?trip.toFixed(1)+' km':'—')+
+(pickupCoords?'calculating…':'—')+
 '</b>';
+
+const trip=
+pickupCoords?await roadKm(pickupCoords,dropCoords):null;
+
+if(pickupCoords){
+
+$('destinationResult').innerHTML=
+$('destinationResult').innerHTML.replace(
+'calculating…',
+trip!=null?trip.toFixed(1)+' km (road)':'—'
+);
+
+}
 
 }
 
@@ -1043,6 +1054,80 @@ return R*2*Math.atan2(
 Math.sqrt(x),
 Math.sqrt(1-x)
 );
+
+}
+
+// Real road-following distance (via OSRM's free public routing API),
+// instead of the straight-line "as the crow flies" distance from km().
+// Falls back to a road-detour-adjusted straight-line estimate if the
+// routing API is unreachable (e.g. no internet).
+const roadKmCache=new Map();
+
+function roadKmCacheKey(a,b){
+
+return(
+a.lat.toFixed(5)+','+a.lon.toFixed(5)+
+'|'+
+b.lat.toFixed(5)+','+b.lon.toFixed(5)
+);
+
+}
+
+async function roadKm(a,b){
+
+if(!a||!b)
+return null;
+
+const key=roadKmCacheKey(a,b);
+
+if(roadKmCache.has(key))
+return roadKmCache.get(key);
+
+let result=null;
+
+try{
+
+const url=
+`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`;
+
+const r=await fetch(url);
+
+if(r.ok){
+
+const data=await r.json();
+
+if(
+data.code==='Ok' &&
+data.routes &&
+data.routes[0]
+){
+
+result=data.routes[0].distance/1000;
+
+}
+
+}
+
+}catch(e){}
+
+if(result==null){
+
+// Roads are never perfectly straight - apply a rough detour factor
+// so the fallback is closer to a real driving distance.
+const straight=km(a,b);
+
+result=
+straight!=null
+?
+straight*1.3
+:
+null;
+
+}
+
+roadKmCache.set(key,result);
+
+return result;
 
 }
 
@@ -1280,7 +1365,7 @@ d
 );
 
 const trip=
-km(
+await roadKm(
 pickupCoords,
 dropCoords
 );
@@ -1288,7 +1373,7 @@ dropCoords
 $('dropDetails').innerHTML+=
 '<br><b>📏 Pickup → Destination: '+
 trip.toFixed(1)+
-' km</b>';
+' km (road)</b>';
 
 $('destinationResult')
 .classList.remove('hidden');
@@ -1340,7 +1425,7 @@ rideActive=true;
 requestPending=true;
 
 const trip=
-km(
+await roadKm(
 pickupCoords,
 dropCoords
 );
@@ -1373,7 +1458,7 @@ showDriverRequest();
 
 }
 
-function showDriverRequest(){
+async function showDriverRequest(){
 
 if(!rideActive)
 return;
@@ -1397,17 +1482,10 @@ $('drop').value;
 $('requestVehicle').textContent=
 selectedRide;
 
-const dk=
-km(
-driverCoords,
-pickupCoords
-);
-
-const tk=
-km(
-pickupCoords,
-dropCoords
-);
+const [dk,tk]=await Promise.all([
+roadKm(driverCoords,pickupCoords),
+roadKm(pickupCoords,dropCoords)
+]);
 
 $('requestDriverKm').textContent=
 dk
@@ -1479,7 +1557,7 @@ $('driverRequest')
 
 }
 
-function acceptRequest(){
+async function acceptRequest(){
 
 accepted=true;
 
@@ -1501,17 +1579,10 @@ $('pickup').value;
 $('activeDrop').textContent=
 $('drop').value;
 
-const adk=
-km(
-driverCoords,
-pickupCoords
-);
-
-const atk=
-km(
-pickupCoords,
-dropCoords
-);
+const [adk,atk]=await Promise.all([
+roadKm(driverCoords,pickupCoords),
+roadKm(pickupCoords,dropCoords)
+]);
 
 $('activeDriverKm').textContent=
 adk!=null
