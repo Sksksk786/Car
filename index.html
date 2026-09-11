@@ -123,8 +123,11 @@ Destination
 </button>
 
 <div id="googleLinkBox" class="locationbox hidden" style="margin-top:10px">
-<b>📎 Google Maps se link paste karo:</b>
-<input id="googleLinkInput" placeholder="Yahan link paste karo" style="margin-top:8px">
+<b>📎 Google Maps se location paste karo:</b>
+<div class="small" style="margin:6px 0">
+Sabse reliable tarika: Google Maps mein us jagah par <b>ungli dabakar (long-press)</b> rakho — ek pin drop hoga aur neeche <b>coordinates dikhenge</b> (jaise "28.6139, 77.2090"). Unhi coordinates par tap karke copy karo, phir yahan paste karo.
+</div>
+<input id="googleLinkInput" placeholder="Coordinates ya link yahan paste karo" style="margin-top:8px">
 <button class="btn" style="margin-top:8px" onclick="confirmGoogleMapsLink()">
 ✅ Ye Location Set Karo
 </button>
@@ -406,15 +409,6 @@ $('customer').classList.toggle(
 role!=='customer'
 );
 
-if(role==='customer'){
-
-// Map now shows automatically instead of behind a "Select on Map"
-// button - Search already re-centres it, so a separate toggle was
-// redundant and confusing.
-openDestinationMap(true);
-
-}
-
 $('driver').classList.toggle(
 'hidden',
 role!=='driver'
@@ -594,22 +588,6 @@ bdcPin
 nomPin
 :''
 );
-
-const cityLower=city.toLowerCase();
-
-const areaLower=area.toLowerCase();
-
-if(
-cityLower==='rewari' ||
-(
-cityLower.includes('rewari') &&
-!areaLower.includes('dharuhera')
-)
-){
-
-pincode='123401';
-
-}
 
 const parts=[
 
@@ -1035,12 +1013,13 @@ coords=await resolveShortLink(raw);
 if(!coords){
 
 alert(
-'Is short link se location nahi mil paya (Google isko directly block karta hai).\n\n'+
+'Is short link se location nahi mil paya (Google isko directly block karta hai - ye hamesha fail ho sakta hai, kabhi-kabhi wali baat nahi).\n\n'+
 'Sabse reliable tarika: Google Maps app ke "Share" button ke bajay -\n'+
-'1) Us jagah ko Chrome browser (google.com/maps) mein search karo\n'+
-'2) Address bar se pura link copy karo (jisme "@lat,lon" dikhega)\n'+
-'3) Wahi yahan paste karo\n\n'+
-'Ya seedha "🗺️ Select on Map" se tap karke pin lagao - wo hamesha kaam karta hai.'
+'1) Us jagah par ungli dabakar (long-press) rakho, ek pin drop hoga\n'+
+'2) Neeche coordinates dikhenge (jaise "28.6139, 77.2090")\n'+
+'3) Unhi coordinates par tap karke copy karo\n'+
+'4) Wahi yahan paste karo\n\n'+
+'Ya seedha "🗺️ Select on Map" se drag karke pin lagao - wo hamesha kaam karta hai.'
 );
 
 return;
@@ -1150,16 +1129,71 @@ return;
 
 currentSuggestions=results;
 
-$('destSuggestions').innerHTML=results.map((res,i)=>{
+// Nominatim often returns the same place multiple times (a city
+// point, its district/administrative boundary, etc.) - all with the
+// exact same display name, which looked like meaningless duplicates.
+// De-dupe true repeats, and label the rest by type (City/District/
+// Area/...) so different-but-same-named entries are told apart.
+const typeLabels={
+city:'City',town:'Town',village:'Village',hamlet:'Village',
+suburb:'Area',neighbourhood:'Area',quarter:'Area',
+county:'District',state_district:'District',
+administrative:'Area',state:'State',
+railway:'Station',bus_stop:'Bus Stop',bus_station:'Bus Stand',
+hotel:'Hotel',attraction:'Landmark'
+};
+
+const seen=new Set();
+
+const deduped=[];
+
+const dedupedIdx=[];
+
+results.forEach((res,i)=>{
+
+const dupKey=(res.display_name||'')+'|'+(res.lat||'')+','+(res.lon||'');
+
+if(seen.has(dupKey))
+return;
+
+seen.add(dupKey);
+
+deduped.push(res);
+
+dedupedIdx.push(i);
+
+});
+
+currentSuggestions=deduped;
+
+// If two remaining entries share the exact same display name, tag
+// each with its type so they're visibly different, not blank repeats.
+const nameCounts={};
+
+deduped.forEach(res=>{
+
+const n=res.display_name||'';
+
+nameCounts[n]=(nameCounts[n]||0)+1;
+
+});
+
+$('destSuggestions').innerHTML=deduped.map((res,i)=>{
 
 const name=res.name||(res.display_name||'').split(',')[0];
 
 const full=res.display_name||'';
 
+const typeTag=typeLabels[res.type]||typeLabels[res.class]||res.type;
+
+const showTag=nameCounts[full]>1 && typeTag;
+
 return(
 '<div style="padding:12px;border-bottom:1px solid #eee;cursor:pointer" '+
 'onclick="selectDestSuggestion('+i+')">'+
-'<b>📍 '+escapeHtml(name)+'</b><br>'+
+'<b>📍 '+escapeHtml(name)+
+(showTag?' <span class="small">('+escapeHtml(typeTag)+')</span>':'')+
+'</b><br>'+
 '<span class="small">'+escapeHtml(full)+'</span>'+
 '</div>'
 );
@@ -1653,9 +1687,20 @@ data.routes &&
 data.routes[0]
 ){
 
+// OSRM's time assumes free-flow traffic (no jams, no signals delay) -
+// it has no real-time traffic data since it's a free routing engine.
+// Indian roads/city traffic typically take noticeably longer than
+// this "ideal" time, so apply a buffer: bigger for shorter/city trips
+// (more signals/congestion per km), smaller for long highway trips.
+const rawMins=data.routes[0].duration/60;
+
+const km_=data.routes[0].distance/1000;
+
+const trafficFactor=km_<15?1.6:(km_<50?1.45:1.3);
+
 result={
-km:data.routes[0].distance/1000,
-mins:data.routes[0].duration/60
+km:km_,
+mins:rawMins*trafficFactor
 };
 
 }
