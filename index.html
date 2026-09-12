@@ -69,7 +69,7 @@ input,select{width:100%;padding:13px;border:1px solid #ccc;border-radius:10px;fo
 
 <button class="back" onclick="backHome()">← Back</button>
 
-<div class="card">
+<div class="card" id="bookRideCard">
 <h2>Book a Ride</h2>
 
 <div class="label">Pickup location</div>
@@ -130,13 +130,11 @@ Destination
 </button>
 </div>
 
-<button class="btn" onclick="findRides()">
-Find Ride
-</button>
-
 </div>
 
 <div id="rideChoices" class="card hidden">
+
+<button class="back" style="margin:0 0 8px" onclick="backToBooking()">← Back</button>
 
 <h2>Choose your ride</h2>
 
@@ -440,6 +438,10 @@ $('customer').classList.add('hidden');
 $('driver').classList.add('hidden');
 
 $('welcome').classList.remove('hidden');
+
+$('rideChoices').classList.add('hidden');
+
+$('bookRideCard').classList.remove('hidden');
 
 }
 
@@ -1068,6 +1070,16 @@ await placeDestPin(coords.lat,coords.lon);
 
 }catch(e){}
 
+if(pickupCoords){
+
+try{
+
+await findRides();
+
+}catch(e){}
+
+}
+
 }
 
 // If the person edits the destination text without pressing Search
@@ -1264,6 +1276,16 @@ await openDestinationMap(true);
 
 await placeDestPin(dropCoords.lat,dropCoords.lon);
 
+if(pickupCoords){
+
+try{
+
+await findRides();
+
+}catch(e){}
+
+}
+
 }
 
 async function searchDestination(){
@@ -1370,6 +1392,16 @@ await openDestinationMap(true);
 await placeDestPin(dropCoords.lat,dropCoords.lon,true);
 
 }catch(e){}
+
+if(pickupCoords){
+
+try{
+
+await findRides();
+
+}catch(e){}
+
+}
 
 }
 
@@ -2061,6 +2093,11 @@ $('rideChoices')
 $('customerRide')
 .classList.add('hidden');
 
+$('bookRideCard')
+.classList.add('hidden');
+
+window.scrollTo({top:0,behavior:'smooth'});
+
 $('rideMapPickup').textContent=$('pickup').value;
 
 $('rideMapDrop').textContent=$('drop').value;
@@ -2187,6 +2224,16 @@ rideMapLine.getBounds(),
 );
 
 setTimeout(()=>rideMapInstance.invalidateSize(),150);
+
+}
+
+function backToBooking(){
+
+$('rideChoices').classList.add('hidden');
+
+$('bookRideCard').classList.remove('hidden');
+
+window.scrollTo({top:0,behavior:'smooth'});
 
 }
 
