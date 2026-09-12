@@ -1596,6 +1596,18 @@ const c=leafletMap.getCenter();
 
 await placeDestPin(c.lat,c.lng);
 
+// Ola-style: confirming the destination goes straight into the ride
+// list (map + fares), instead of requiring a separate "Find Ride" tap.
+if(pickupCoords){
+
+try{
+
+await findRides();
+
+}catch(e){}
+
+}
+
 }
 
 async function placeDestPin(lat,lon,skipAddressLookup){
