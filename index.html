@@ -140,13 +140,21 @@ Find Ride
 
 <h2>Choose your ride</h2>
 
+<div id="rideMap" style="height:180px;border-radius:12px;margin-bottom:12px"></div>
+
+<div class="locationbox" style="margin-top:0">
+<span class="small">🟢 </span><span id="rideMapPickup" class="small"></span><br>
+<span class="small">🔴 </span><span id="rideMapDrop" class="small"></span>
+</div>
+
 <h3>🛺 Auto</h3>
 
 <div class="ride selected" id="auto" onclick="selectRide('Auto')">
 <div>
 <b>Auto</b><br>
-<span class="small">City ride</span>
+<span class="small" id="autoInfo">City ride</span>
 </div>
+<b id="autoFare">—</b>
 </div>
 
 <h3>🚗 Car</h3>
@@ -154,22 +162,25 @@ Find Ride
 <div class="ride" id="mini" onclick="selectRide('Mini')">
 <div>
 <b>Mini</b><br>
-<span class="small">Small car</span>
+<span class="small" id="miniInfo">Small car</span>
 </div>
+<b id="miniFare">—</b>
 </div>
 
 <div class="ride" id="sedan" onclick="selectRide('Sedan')">
 <div>
 <b>Sedan</b><br>
-<span class="small">Comfortable sedan</span>
+<span class="small" id="sedanInfo">Comfortable sedan</span>
 </div>
+<b id="sedanFare">—</b>
 </div>
 
 <div class="ride" id="suv" onclick="selectRide('SUV')">
 <div>
 <b>SUV</b><br>
-<span class="small">More space</span>
+<span class="small" id="suvInfo">More space</span>
 </div>
+<b id="suvFare">—</b>
 </div>
 
 <button class="btn" onclick="bookRide()">
@@ -1118,7 +1129,7 @@ const myToken=++suggestSessionToken;
 try{
 
 const r=await fetch(
-`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=1&q=${encodeURIComponent(q)}`,
+`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&q=${encodeURIComponent(q)}`,
 {headers:{'Accept':'application/json'}}
 );
 
@@ -1135,7 +1146,66 @@ return;
 
 }
 
-const results=await r.json();
+let results=await r.json();
+
+if(myToken!==suggestSessionToken)
+return;
+
+// More locations: if Nominatim came back thin, also pull suggestions
+// from Photon (a second, differently-indexed OSM source) and merge
+// in whatever isn't already in the list.
+if(results.length<6){
+
+try{
+
+const pr=await fetch(
+`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`
+);
+
+if(myToken!==suggestSessionToken)
+return;
+
+if(pr.ok){
+
+const pdata=await pr.json();
+
+const seenNames=new Set(
+results.map(x=>(x.display_name||'').toLowerCase())
+);
+
+(pdata.features||[]).forEach(f=>{
+
+if(!f.properties||!f.geometry||!f.geometry.coordinates)
+return;
+
+const name=[
+f.properties.name,
+f.properties.city,
+f.properties.state,
+f.properties.country
+].filter(Boolean).join(', ');
+
+if(seenNames.has(name.toLowerCase()))
+return;
+
+seenNames.add(name.toLowerCase());
+
+results.push({
+name:f.properties.name,
+display_name:name,
+lat:f.geometry.coordinates[1],
+lon:f.geometry.coordinates[0],
+class:f.properties.osm_key,
+type:f.properties.osm_value
+});
+
+});
+
+}
+
+}catch(e){}
+
+}
 
 if(myToken!==suggestSessionToken)
 return;
@@ -1978,6 +2048,133 @@ $('rideChoices')
 
 $('customerRide')
 .classList.add('hidden');
+
+$('rideMapPickup').textContent=$('pickup').value;
+
+$('rideMapDrop').textContent=$('drop').value;
+
+updateFareDisplay(trip);
+
+try{
+
+await renderRideMap(pickupCoords,dropCoords);
+
+}catch(e){}
+
+}
+
+// Simple, clearly-estimated cash fare per vehicle type, based on the
+// real road distance/time just calculated. Not a final/official rate -
+// just a reasonable estimate so the person has a rough idea before
+// booking.
+const fareConfig={
+Auto:{base:30,perKm:11,perMin:1,min:80},
+Mini:{base:40,perKm:12,perMin:1.5,min:130},
+Sedan:{base:50,perKm:14,perMin:1.8,min:150},
+SUV:{base:60,perKm:17,perMin:2,min:190}
+};
+
+function estimateFare(type,tripKm,tripMins){
+
+const c=fareConfig[type];
+
+if(!c||tripKm==null)
+return null;
+
+const raw=c.base+(tripKm*c.perKm)+(tripMins*c.perMin);
+
+return Math.round(Math.max(raw,c.min));
+
+}
+
+function updateFareDisplay(trip){
+
+const km_=trip?trip.km:null;
+
+const mins_=trip?trip.mins:null;
+
+const idMap={Auto:'autoFare',Mini:'miniFare',Sedan:'sedanFare',SUV:'suvFare'};
+
+Object.keys(idMap).forEach(type=>{
+
+const fare=estimateFare(type,km_,mins_);
+
+$(idMap[type]).textContent=fare!=null?'₹'+fare:'—';
+
+});
+
+}
+
+let rideMapInstance=null;
+
+let rideMapPickupMarker=null;
+
+let rideMapDropMarker=null;
+
+let rideMapLine=null;
+
+async function renderRideMap(pickup,drop){
+
+if(!pickup||!drop)
+return;
+
+await loadLeaflet();
+
+if(!rideMapInstance){
+
+rideMapInstance=L.map('rideMap',{
+zoomControl:false
+});
+
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{maxZoom:19,attribution:'© OpenStreetMap contributors'}
+).addTo(rideMapInstance);
+
+}
+
+if(rideMapPickupMarker)
+rideMapInstance.removeLayer(rideMapPickupMarker);
+
+if(rideMapDropMarker)
+rideMapInstance.removeLayer(rideMapDropMarker);
+
+if(rideMapLine)
+rideMapInstance.removeLayer(rideMapLine);
+
+const greenIcon=L.divIcon({
+html:'<div style="background:#16803c;width:14px;height:14px;border-radius:50%;border:2px solid #fff"></div>',
+className:'',
+iconSize:[14,14]
+});
+
+const redIcon=L.divIcon({
+html:'<div style="background:#b42318;width:14px;height:14px;border-radius:50%;border:2px solid #fff"></div>',
+className:'',
+iconSize:[14,14]
+});
+
+rideMapPickupMarker=L.marker(
+[pickup.lat,pickup.lon],
+{icon:greenIcon}
+).addTo(rideMapInstance);
+
+rideMapDropMarker=L.marker(
+[drop.lat,drop.lon],
+{icon:redIcon}
+).addTo(rideMapInstance);
+
+rideMapLine=L.polyline(
+[[pickup.lat,pickup.lon],[drop.lat,drop.lon]],
+{color:'#111',weight:3,dashArray:'6,6'}
+).addTo(rideMapInstance);
+
+rideMapInstance.fitBounds(
+rideMapLine.getBounds(),
+{padding:[24,24]}
+);
+
+setTimeout(()=>rideMapInstance.invalidateSize(),150);
 
 }
 
